@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Handmade_Hero">
+      <UniqueIdentifier>{65c8d256-696f-404e-a09f-732c0102bea6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Handmade_Hero\Platform Entry">
+      <UniqueIdentifier>{3c8fc5fc-b33c-48b6-9bb0-4c86825cf845}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="win32_main.cpp">
+      <Filter>Handmade_Hero\Platform Entry</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
