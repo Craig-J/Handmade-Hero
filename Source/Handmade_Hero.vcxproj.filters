@@ -13,4 +13,9 @@
       <Filter>Handmade_Hero\Platform Entry</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="type_definitions.h">
+      <Filter>Handmade_Hero</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>
