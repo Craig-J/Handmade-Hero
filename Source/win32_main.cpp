@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <Xinput.h>
 #include "type_definitions.h"
 
 struct Win32BitmapBuffer
@@ -21,6 +22,36 @@ struct Win32ClientDimensions
 static_global bool global_running;
 static_global Win32BitmapBuffer global_back_buffer;
 
+// NOTE(Craig): XInputGetState default function.
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
+typedef X_INPUT_GET_STATE(XInputGetState_);
+X_INPUT_GET_STATE(XInputGetStateStub)
+{
+	return 0;
+}
+static_global XInputGetState_* _XInputGetState = XInputGetStateStub;
+#define XInputGetState _XInputGetState
+
+// NOTE(Craig): XInputSetState default function.
+#define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
+typedef X_INPUT_SET_STATE(XInputSetState_);
+X_INPUT_SET_STATE(XInputSetStateStub)
+{
+	return 0;
+}
+static_global XInputSetState_* _XInputSetState = XInputSetStateStub;
+#define XInputSetState _XInputSetState
+
+static_internal void Win32LoadXInput()
+{
+	HMODULE XInputLibrary = LoadLibrary("xinput1_3.dll");
+	if (XInputLibrary)
+	{
+		XInputGetState = (XInputGetState_*)GetProcAddress(XInputLibrary, "XInputGetState");
+		XInputSetState = (XInputSetState_*)GetProcAddress(XInputLibrary, "XInputSetState");
+	}
+}
+
 static_internal Win32ClientDimensions Win32GetClientDimensions(HWND _window)
 {
 	RECT client_rect;
@@ -31,13 +62,13 @@ static_internal Win32ClientDimensions Win32GetClientDimensions(HWND _window)
 	return result;
 }
 
-static_internal void Win32RenderWeirdGradient(Win32BitmapBuffer _buffer, int _blue_offset, int _green_offset, int _red_offset)
+static_internal void Win32RenderWeirdGradient(Win32BitmapBuffer* _buffer, int _blue_offset, int _green_offset, int _red_offset)
 {
-	ui8* row = (ui8*)_buffer.memory;
-	for (int y = 0; y < _buffer.height; ++y)
+	ui8* row = (ui8*)_buffer->memory;
+	for (int y = 0; y < _buffer->height; ++y)
 	{
 		ui32* pixel = (ui32*)row;
-		for (int x = 0; x < _buffer.width; ++x)
+		for (int x = 0; x < _buffer->width; ++x)
 		{
 			/*
 
@@ -55,7 +86,7 @@ static_internal void Win32RenderWeirdGradient(Win32BitmapBuffer _buffer, int _bl
 			*pixel++ = ((red << 16) | (green << 8) | blue);
 		}
 
-		row += _buffer.pitch;
+		row += _buffer->pitch;
 	}
 }
 
@@ -116,11 +147,9 @@ static_internal void Win32ResizeBitmapBuffer(Win32BitmapBuffer* _buffer, int _wi
 	Win32ClearBuffer(*_buffer, 0, 0, 0);
 }
 
-static_internal void Win32DisplayBitmapToDevice(HDC _device_context, Win32BitmapBuffer _buffer, int _client_width, int _client_height, int _x, int _y, int _width, int _height)
+static_internal void Win32DisplayBitmapToDevice(HDC _device_context, Win32BitmapBuffer _buffer, int _client_width, int _client_height)
 {
 	StretchDIBits(_device_context,
-				  //_x, _y, _width, _height,
-				  //_x, _y, _width, _height,
 				  0, 0, _client_width, _client_height,
 				  0, 0, _buffer.width, _buffer.height,
 				  _buffer.memory,
@@ -128,7 +157,7 @@ static_internal void Win32DisplayBitmapToDevice(HDC _device_context, Win32Bitmap
 				  DIB_RGB_COLORS, SRCCOPY);
 }
 
-LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _message, WPARAM _wparameter, LPARAM _lparameter)
+static_internal LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _message, WPARAM _wparameter, LPARAM _lparameter)
 {
 	LRESULT result = 0;
 
@@ -155,17 +184,74 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _message, WPARAM _wp
 		OutputDebugString("WM_ACTIVATEAPP\n");
 	} break;
 
+	case WM_KEYDOWN:
+	case WM_KEYUP:
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+	{
+		ui32 VK_code = _wparameter;
+		bool key_released = ((_lparameter & (1 << 30)) != 0);
+		bool key_pressed = ((_lparameter & (1 << 31)) == 0);
+
+		if (key_pressed != key_released)
+		{
+			if (VK_code == 'W')
+			{
+
+			}
+			else if (VK_code == 'A')
+			{
+
+			}
+			else if (VK_code == 'S')
+			{
+
+			}
+			else if (VK_code == 'D')
+			{
+
+			}
+			else if (VK_code == 'Q')
+			{
+
+			}
+			else if (VK_code == 'E')
+			{
+
+			}
+			else if (VK_code == 'R')
+			{
+
+			}
+			else if (VK_code == 'T')
+			{
+
+			}
+			else if (VK_code == 'F')
+			{
+
+			}
+			else if (VK_code == 'G')
+			{
+
+			}
+			else if (VK_code == VK_ESCAPE)
+			{
+
+			}
+			else if (VK_code == VK_SPACE)
+			{
+
+			}
+		}
+	} break;
+
 	case WM_PAINT:
 	{
 		PAINTSTRUCT paint;
 		HDC device_context = BeginPaint(_window, &paint);
-		int x = paint.rcPaint.left;
-		int y = paint.rcPaint.top;
-		int height = paint.rcPaint.bottom - paint.rcPaint.top;
-		int width = paint.rcPaint.right - paint.rcPaint.left;
-
 		Win32ClientDimensions client = Win32GetClientDimensions(_window);
-		Win32DisplayBitmapToDevice(device_context, global_back_buffer, client.width, client.height, x, y, width, height);
+		Win32DisplayBitmapToDevice(device_context, global_back_buffer, client.width, client.height);
 		EndPaint(_window, &paint);
 	} break;
 
@@ -181,6 +267,7 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _message, WPARAM _wp
 int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _command_line, int _command_show)
 {
 	Win32ResizeBitmapBuffer(&global_back_buffer, 1600, 900);
+	Win32LoadXInput();
 
 	WNDCLASS window_class = {};
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -226,11 +313,41 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					DispatchMessage(&message);
 				}
 
-				Win32RenderWeirdGradient(global_back_buffer, x_offset, y_offset, 0);
+				for (DWORD controller = 0; controller < XUSER_MAX_COUNT; ++controller)
+				{
+					XINPUT_STATE controller_state;
+					if (XInputGetState(controller, &controller_state) == ERROR_SUCCESS)
+					{
+						// NOTE(Craig): Controller available.
+						XINPUT_GAMEPAD* pad = &controller_state.Gamepad;
+
+						bool up = (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
+						bool down = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+						bool left = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+						bool right = (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+						bool start = (pad->wButtons & XINPUT_GAMEPAD_START);
+						bool back = (pad->wButtons & XINPUT_GAMEPAD_BACK);
+						bool left_shoulder = (pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
+						bool right_shoulder = (pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
+						bool A = (pad->wButtons & XINPUT_GAMEPAD_A);
+						bool B = (pad->wButtons & XINPUT_GAMEPAD_B);
+						bool X = (pad->wButtons & XINPUT_GAMEPAD_X);
+						bool Y = (pad->wButtons & XINPUT_GAMEPAD_Y);
+
+						i16 stick_x = pad->sThumbLX;
+						i16 stick_y = pad->sThumbLY;
+					}
+					else
+					{
+						// NOTE(Craig): Controller not available.
+					}
+				}
+
+				Win32RenderWeirdGradient(&global_back_buffer, x_offset, y_offset, 0);
 
 				HDC device_context = GetDC(window);
 				Win32ClientDimensions client = Win32GetClientDimensions(window);
-				Win32DisplayBitmapToDevice(device_context, global_back_buffer, client.width, client.height, 0, 0, client.width, client.height);
+				Win32DisplayBitmapToDevice(device_context, global_back_buffer, client.width, client.height);
 				ReleaseDC(window, device_context);
 
 				++x_offset;
