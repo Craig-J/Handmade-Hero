@@ -37,6 +37,8 @@
 	typedef int32_t i32;
 	typedef int64_t i64;
 
+	typedef i32 bool32;
+
 //_______TYPEDEFS_______//
 
 #endif

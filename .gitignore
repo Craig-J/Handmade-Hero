@@ -5,11 +5,14 @@
 *.suo
 *.user
 *.sln.docstates
+/tools
+/source/intro_main.cpp
 
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
+data/
 x64/
 build/
 bld/
@@ -187,5 +190,3 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
-/Tools
-/Source/intro_main.cpp

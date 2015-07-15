@@ -1,5 +1,6 @@
 #include <Windows.h>
 #include <Xinput.h>
+#include <dsound.h>
 #include "type_definitions.h"
 
 struct Win32BitmapBuffer
@@ -22,33 +23,123 @@ struct Win32ClientDimensions
 static_global bool global_running;
 static_global Win32BitmapBuffer global_back_buffer;
 
-// NOTE(Craig): XInputGetState default function.
+// NOTE(Craig): First define a macro to create functions with correct signature.
+// Second create a type with this function signature using the macro.
+// Third make a default stub function using the macro.
+// Fourth create a function pointer that points to the stub function.
+// Fifth define the functions normal name to reference the function pointer instead.
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
-typedef X_INPUT_GET_STATE(XInputGetState_);
-X_INPUT_GET_STATE(XInputGetStateStub)
+typedef X_INPUT_GET_STATE(XInputGetState_Type);
+X_INPUT_GET_STATE(XInputGetState_Stub)
 {
-	return 0;
+	return ERROR_DEVICE_NOT_CONNECTED;
 }
-static_global XInputGetState_* _XInputGetState = XInputGetStateStub;
-#define XInputGetState _XInputGetState
+static_global XInputGetState_Type* XInputGetState_FuncPtr = XInputGetState_Stub;
+#define XInputGetState XInputGetState_FuncPtr
 
 // NOTE(Craig): XInputSetState default function.
 #define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
-typedef X_INPUT_SET_STATE(XInputSetState_);
-X_INPUT_SET_STATE(XInputSetStateStub)
+typedef X_INPUT_SET_STATE(XInputSetState_Type);
+X_INPUT_SET_STATE(XInputSetState_Stub)
 {
-	return 0;
+	return ERROR_DEVICE_NOT_CONNECTED;
 }
-static_global XInputSetState_* _XInputSetState = XInputSetStateStub;
-#define XInputSetState _XInputSetState
+static_global XInputSetState_Type* XInputSetState_FuncPtr = XInputSetState_Stub;
+#define XInputSetState XInputSetState_FuncPtr
+
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(DirectSoundCreate_Type);
 
 static_internal void Win32LoadXInput()
 {
-	HMODULE XInputLibrary = LoadLibrary("xinput1_3.dll");
+	HMODULE XInputLibrary = LoadLibrary("xinput1_4.dll");
+	if (!XInputLibrary)
+	{
+		// TODO(Craig): Log xinput version.
+		HMODULE XInputLibrary = LoadLibrary("xinput1_3.dll");
+	}
 	if (XInputLibrary)
 	{
-		XInputGetState = (XInputGetState_*)GetProcAddress(XInputLibrary, "XInputGetState");
-		XInputSetState = (XInputSetState_*)GetProcAddress(XInputLibrary, "XInputSetState");
+		XInputGetState = (XInputGetState_Type*)GetProcAddress(XInputLibrary, "XInputGetState");
+		if (!XInputGetState) { XInputGetState = XInputGetState_Stub; }
+		XInputSetState = (XInputSetState_Type*)GetProcAddress(XInputLibrary, "XInputSetState");
+		if (!XInputSetState) { XInputSetState = XInputSetState_Stub; }
+		
+		// TODO(Craig): Log if a function failed to load.
+	}
+	else
+	{
+		// TODO(Craig): Log that XInput failed to load.
+	}
+}
+
+static_internal void Win32InitializeDirectSound(HWND _window, i32 _samples_per_second, i32 _buffer_size)
+{
+	HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
+
+	if (DSoundLibrary)
+	{
+		DirectSoundCreate_Type* DirectSoundCreate = (DirectSoundCreate_Type*)GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+		
+		LPDIRECTSOUND direct_sound;
+		if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &direct_sound, 0)))
+		{
+			WAVEFORMATEX wave_format = {};
+			wave_format.wFormatTag = WAVE_FORMAT_PCM;
+			wave_format.nChannels = 2;
+			wave_format.nSamplesPerSec = _samples_per_second;
+			wave_format.wBitsPerSample = 16;
+			wave_format.nBlockAlign = (wave_format.nChannels * wave_format.wBitsPerSample) / 8;
+			wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
+			wave_format.cbSize = 0;
+
+			if (SUCCEEDED(direct_sound->SetCooperativeLevel(_window, DSSCL_PRIORITY)))
+			{
+				DSBUFFERDESC buffer_description = {};
+				buffer_description.dwSize = sizeof(buffer_description);
+				buffer_description.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+				// NOTE(Craig): Create a primary buffer.
+				LPDIRECTSOUNDBUFFER primary_buffer;
+				if (SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_description, &primary_buffer, 0)))
+				{
+					if (SUCCEEDED(primary_buffer->SetFormat(&wave_format)))
+					{
+
+					}
+					else
+					{
+						// TODO(Craig): Log format set failure.
+					}
+				}
+				else
+				{
+					// TODO(Craig): Log primary buffer creation failure.
+				}
+			}
+			else
+			{
+				// TODO(Craig): Log SetCooperativeLevel function failure.
+			}
+
+			DSBUFFERDESC buffer_description = {};
+			buffer_description.dwSize = sizeof(buffer_description);
+			buffer_description.dwBufferBytes = _buffer_size;
+			buffer_description.lpwfxFormat = &wave_format;
+			LPDIRECTSOUNDBUFFER secondary_buffer;
+			if (SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_description, &secondary_buffer, 0)))
+			{
+
+			}
+		}
+		else
+		{
+			// TODO(Craig): Log that the function failed to load.
+		}
+	}
+	else
+	{
+		// TODO(Craig): Log that directsound failed to load.
 	}
 }
 
@@ -139,7 +230,7 @@ static_internal void Win32ResizeBitmapBuffer(Win32BitmapBuffer* _buffer, int _wi
 	_buffer->info.bmiHeader.biCompression = BI_RGB;
 
 	int bitmap_memory_size = (_width * _height) * bytes_per_pixel;
-	_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+	_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	_buffer->pitch = _buffer->width * bytes_per_pixel;
 
@@ -192,8 +283,14 @@ static_internal LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _mes
 		ui32 VK_code = _wparameter;
 		bool key_released = ((_lparameter & (1 << 30)) != 0);
 		bool key_pressed = ((_lparameter & (1 << 31)) == 0);
+		bool32 alt_down = (_lparameter & (1 << 29));
 
-		if (key_pressed != key_released)
+		
+		if (key_pressed == key_released)
+		{
+			// NOTE(Craig): Key is repeating in this block
+		}
+		else
 		{
 			if (VK_code == 'W')
 			{
@@ -237,12 +334,17 @@ static_internal LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _mes
 			}
 			else if (VK_code == VK_ESCAPE)
 			{
-
+				OutputDebugString("esc pressed\n");
 			}
 			else if (VK_code == VK_SPACE)
 			{
 
 			}
+		}
+
+		if ((alt_down) && (VK_code == VK_F4))
+		{
+			global_running = false;
 		}
 	} break;
 
@@ -296,6 +398,8 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 		{
 			int x_offset = 0;
 			int y_offset = 0;
+
+			Win32InitializeDirectSound(window, 48000, 48000*sizeof(i16)*2);
 
 			global_running = true;
 
@@ -356,12 +460,12 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 		}
 		else
 		{
-			// TODO(Craig): Logging.
+			// TODO(Craig): Log that we failed creation of the window.
 		}
 	}
 	else
 	{
-		// TODO(Craig): Logging.
+		// TODO(Craig): Log the we failed to register the window class.
 	}
 
 	return EXIT_SUCCESS;
