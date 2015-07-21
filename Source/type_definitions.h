@@ -24,6 +24,8 @@
 	// Rationale: Disambiguation
 	#define static_global static
 
+	#define Pi32 3.14159265358979323846f
+
 //_______PREPROCESSOR_______//
 //~~~~~~ TYPEDEFS ~~~~~~//
 
@@ -38,6 +40,9 @@
 	typedef int64_t i64;
 
 	typedef i32 bool32;
+
+	typedef float float32;
+	typedef double float64;
 
 //_______TYPEDEFS_______//
 
