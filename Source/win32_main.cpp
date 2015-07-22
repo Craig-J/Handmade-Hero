@@ -2,6 +2,7 @@
 #include <Xinput.h>
 #include <dsound.h>
 #include <cmath>
+#include <cstdio>
 #include "type_definitions.h"
 
 struct Win32BitmapBuffer
@@ -25,11 +26,11 @@ struct Win32AudioInfo
 	int samples_per_second;
 	int tone_frequency;
 	int tone_volume;
-	ui32 running_sample_index;
+	uint32 running_sample_index;
 	int wave_period;
 	int bytes_per_sample;
 	int secondary_buffer_size;
-	float32 t_sine;
+	real32 t_sine;
 	int latency_sample_count;
 };
 
@@ -66,7 +67,7 @@ static_global XInputSetState_Type* XInputSetState_FuncPtr = XInputSetState_Stub;
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(DirectSoundCreate_Type);
 
-static_internal void Win32InitializeDirectSound(HWND _window, i32 _samples_per_second, i32 _buffer_size)
+static_internal void Win32InitializeDirectSound(HWND _window, int32 _samples_per_second, int32 _buffer_size)
 {
 	HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
 
@@ -149,29 +150,29 @@ static_internal void Win32FillSoundBuffer(Win32AudioInfo* _audio_info, DWORD _by
 		0)))
 	{
 
-		i16* sample_out = (i16*)region_1;
+		int16* sample_out = (int16*)region_1;
 		DWORD region_1_sample_count = region_1_size / _audio_info->bytes_per_sample;
 		for (DWORD sample_index = 0; sample_index < region_1_sample_count; ++sample_index)
 		{
 			
-			float32 sine_value = sin(_audio_info->t_sine);
-			i16 sample_value = (i16)(sine_value * _audio_info->tone_volume);
+			real32 sine_value = sin(_audio_info->t_sine);
+			int16 sample_value = (int16)(sine_value * _audio_info->tone_volume);
 			*sample_out++ = sample_value;
 			*sample_out++ = sample_value;
 
-			_audio_info->t_sine += (2.0f * Pi32)/ (float32)_audio_info->wave_period;
+			_audio_info->t_sine += (2.0f * Pi32)/ (real32)_audio_info->wave_period;
 			++_audio_info->running_sample_index;
 		}
-		sample_out = (i16*)region_2;
+		sample_out = (int16*)region_2;
 		DWORD region_2_sample_count = region_2_size / _audio_info->bytes_per_sample;
 		for (DWORD sample_index = 0; sample_index < region_2_sample_count; ++sample_index)
 		{
-			float32 sine_value = sin(_audio_info->t_sine);
-			i16 sample_value = (i16)(sine_value * _audio_info->tone_volume);
+			real32 sine_value = sin(_audio_info->t_sine);
+			int16 sample_value = (int16)(sine_value * _audio_info->tone_volume);
 			*sample_out++ = sample_value;
 			*sample_out++ = sample_value;
 
-			_audio_info->t_sine += (2.0f * Pi32) / (float32)_audio_info->wave_period;
+			_audio_info->t_sine += (2.0f * Pi32) / (real32)_audio_info->wave_period;
 			++_audio_info->running_sample_index;
 		}
 
@@ -209,10 +210,10 @@ static_internal void Win32LoadXInput()
 
 static_internal void Win32RenderWeirdGradient(Win32BitmapBuffer* _buffer, int _blue_offset, int _green_offset, int _red_offset)
 {
-	ui8* row = (ui8*)_buffer->memory;
+	uint8* row = (uint8*)_buffer->memory;
 	for (int y = 0; y < _buffer->height; ++y)
 	{
-		ui32* pixel = (ui32*)row;
+		uint32* pixel = (uint32*)row;
 		for (int x = 0; x < _buffer->width; ++x)
 		{
 			/*
@@ -224,9 +225,9 @@ static_internal void Win32RenderWeirdGradient(Win32BitmapBuffer* _buffer, int _b
 
 			*/
 
-			ui8 blue = (x + _blue_offset);
-			ui8 green = (y + _green_offset);
-			ui8 red = _red_offset;
+			uint8 blue = (x + _blue_offset);
+			uint8 green = (y + _green_offset);
+			uint8 red = _red_offset;
 
 			*pixel++ = ((red << 16) | (green << 8) | blue);
 		}
@@ -235,12 +236,12 @@ static_internal void Win32RenderWeirdGradient(Win32BitmapBuffer* _buffer, int _b
 	}
 }
 
-void Win32ClearBuffer(Win32BitmapBuffer _buffer, ui8 _red, ui8 _green, ui8 _blue)
+void Win32ClearBuffer(Win32BitmapBuffer _buffer, uint8 _red, uint8 _green, uint8 _blue)
 {
-	ui8* row = (ui8*)_buffer.memory;
+	uint8* row = (uint8*)_buffer.memory;
 	for (int y = 0; y < _buffer.height; ++y)
 	{
-		ui32* pixel = (ui32*)row;
+		uint32* pixel = (uint32*)row;
 		for (int x = 0; x < _buffer.width; ++x)
 		{
 			/*
@@ -344,7 +345,7 @@ static_internal LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _mes
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
 	{
-		ui32 VK_code = (ui32)_wparameter;
+		uint32 VK_code = (uint32)_wparameter;
 		bool32 key_released = ((_lparameter & (1 << 30)) != 0);
 		bool32 key_pressed = ((_lparameter & (1 << 31)) == 0);
 		bool32 alt_down = (_lparameter & (1 << 29));
@@ -435,6 +436,10 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 	Win32ResizeBitmapBuffer(&global_back_buffer, 1600, 900);
 	Win32LoadXInput();
 
+	LARGE_INTEGER temp_performance_counter_frequency;
+	QueryPerformanceFrequency(&temp_performance_counter_frequency);
+	int64 performance_counter_frequency = temp_performance_counter_frequency.QuadPart;
+
 	WNDCLASS window_class = {};
 	window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	window_class.lpfnWndProc = Win32MainWindowCallback;
@@ -471,7 +476,7 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 			audio_info.tone_volume = 9001;
 			audio_info.running_sample_index = 0;
 			audio_info.wave_period = audio_info.samples_per_second / audio_info.tone_frequency;
-			audio_info.bytes_per_sample = sizeof(i16) * 2;
+			audio_info.bytes_per_sample = sizeof(int16) * 2;
 			audio_info.secondary_buffer_size = audio_info.samples_per_second * audio_info.bytes_per_sample;
 			audio_info.latency_sample_count = audio_info.samples_per_second / 15;
 
@@ -479,10 +484,15 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 			Win32FillSoundBuffer(&audio_info, 0, audio_info.latency_sample_count * audio_info.bytes_per_sample);
 			global_secondary_buffer->Play(0, 0, DSBPLAY_LOOPING);
 
-			global_running = true;
+			LARGE_INTEGER previous_counter;
+			QueryPerformanceCounter(&previous_counter);
 
+			uint64 previous_cycle_count = __rdtsc();
+
+			global_running = true;
 			while (global_running)
 			{
+
 				MSG message;
 				while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 				{
@@ -516,8 +526,8 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 						bool32 X = (pad->wButtons & XINPUT_GAMEPAD_X);
 						bool32 Y = (pad->wButtons & XINPUT_GAMEPAD_Y);
 
-						i16 stick_x = pad->sThumbLX;
-						i16 stick_y = pad->sThumbLY;
+						int16 stick_x = pad->sThumbLX;
+						int16 stick_y = pad->sThumbLY;
 
 					}
 					else
@@ -554,6 +564,24 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 
 				++x_offset;
 				y_offset += 2;
+
+				uint64 cycle_count_end = __rdtsc();
+
+				LARGE_INTEGER counter_end;
+				QueryPerformanceCounter(&counter_end);
+
+				uint64 cycles_elapsed = cycle_count_end - previous_cycle_count;
+				int64 counter_elapsed = counter_end.QuadPart - previous_counter.QuadPart;
+				real32 ms_per_frame = (1000.0f * (real32)counter_elapsed) / (real32)performance_counter_frequency;
+				real32 frames_per_second = (real32)performance_counter_frequency / (real32)counter_elapsed;
+				real32 mega_cycles_per_frame = (real32)cycles_elapsed / (1000.0f * 1000.0f);
+
+				char buffer[256];
+				sprintf_s(buffer, "Frame Time: %.02fms  FPS: %.02f  Megacycles: %.02f\n", ms_per_frame, frames_per_second, mega_cycles_per_frame);
+				OutputDebugString(buffer);
+
+				previous_cycle_count = cycle_count_end;
+				previous_counter = counter_end;
 			}
 		}
 		else
