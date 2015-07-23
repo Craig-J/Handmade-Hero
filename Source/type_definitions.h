@@ -2,7 +2,7 @@
 // File:			type_definitions.h																	//
 // Author:			Craig Jeffrey (craigjeffrey3@gmail.com)												//
 // Date:			10/07/2015																			//
-// Description:		Personalized/extended definitions for C/C++ intrinsic and fundamental types.		//
+// Description:		Customized definitions for C/C++ intrinsic and fundamental types.					//
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 #ifndef _TYPE_DEFINITIONS_

@@ -5,9 +5,34 @@
 #include <cstdio>
 #include "type_definitions.h"
 
+/*
+	TODO(Craig)
+
+	- Saved game locations
+	- Handle to own executable
+	- Asset loading path
+	- Threading
+	- Raw input
+	- Sleep/timebeginperiod
+	- Clipcursor (multimonitor support)
+	- Fullscreen support
+	- WM_SETCURSOR
+	- QueryCancelAutoplay
+	- WM_ACTIVATEAPP
+	- Blit speed improvement
+	- Hardware acceleration (OpenGL/D3D)
+	- GetKeyboardLayout
+*/
+
 struct Win32BitmapBuffer
 {
-	// NOTE(Craig): Pixels are 32-bit; memory order BB GG RR XX.
+	// NOTE(Craig): Pixel layout.
+	/*
+		32-bit
+		Memory:		BB GG RR xx
+		Register:	xx RR GG BB
+	*/
+
 	BITMAPINFO info;
 	void* memory;
 	int width;
@@ -39,11 +64,13 @@ static_global bool32 global_running;
 static_global Win32BitmapBuffer global_back_buffer;
 static_global LPDIRECTSOUNDBUFFER global_secondary_buffer;
 
-// NOTE(Craig): First define a macro to create functions with correct signature.
-// Second create a type with this function signature using the macro.
-// Third make a default stub function using the macro.
-// Fourth create a function pointer that points to the stub function.
-// Fifth define the functions normal name to reference the function pointer instead.
+// NOTE(Craig): XInputGetState macro/typedef/stub.
+//		Description
+//		First define a macro to create functions with correct signature.
+//		Second create a type with this function signature using the macro.
+//		Third make a default stub function using the macro.
+//		Fourth create a function pointer that points to the stub function.
+//		Fifth define the functions normal name to reference the function pointer instead.
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
 typedef X_INPUT_GET_STATE(XInputGetState_Type);
 X_INPUT_GET_STATE(XInputGetState_Stub)
@@ -53,7 +80,7 @@ X_INPUT_GET_STATE(XInputGetState_Stub)
 static_global XInputGetState_Type* XInputGetState_FuncPtr = XInputGetState_Stub;
 #define XInputGetState XInputGetState_FuncPtr
 
-// NOTE(Craig): XInputSetState default function.
+// NOTE(Craig): XInputSetState macro/typedef/stub.
 #define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
 typedef X_INPUT_SET_STATE(XInputSetState_Type);
 X_INPUT_SET_STATE(XInputSetState_Stub)
@@ -63,7 +90,7 @@ X_INPUT_SET_STATE(XInputSetState_Stub)
 static_global XInputSetState_Type* XInputSetState_FuncPtr = XInputSetState_Stub;
 #define XInputSetState XInputSetState_FuncPtr
 
-// NOTE(Craig): DirectSoundCreate function typedef.
+// NOTE(Craig): DirectSoundCreate macro/typedef.
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(DirectSoundCreate_Type);
 
@@ -123,7 +150,7 @@ static_internal void Win32InitializeDirectSound(HWND _window, int32 _samples_per
 
 			if (SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_description, &global_secondary_buffer, 0)))
 			{
-
+				// TODO(Craig): Log buffer creation success.
 			}
 		}
 		else
@@ -185,16 +212,15 @@ static_internal void Win32LoadXInput()
 	HMODULE XInputLibrary = LoadLibrary("xinput1_4.dll");
 	if (!XInputLibrary)
 	{
-		// TODO(Craig): Log xinput version.
 		XInputLibrary = LoadLibrary("xinput9_1_0.dll");
 	}
 	if (!XInputLibrary)
 	{
-		// TODO(Craig): Log xinput version.
 		XInputLibrary = LoadLibrary("xinput1_3.dll");
 	}
 	if (XInputLibrary)
 	{
+		// TODO(Craig): Log xinput version.
 		XInputGetState = (XInputGetState_Type*)GetProcAddress(XInputLibrary, "XInputGetState");
 		if (!XInputGetState) { XInputGetState = XInputGetState_Stub; }
 		XInputSetState = (XInputSetState_Type*)GetProcAddress(XInputLibrary, "XInputSetState");
@@ -216,15 +242,6 @@ static_internal void Win32RenderWeirdGradient(Win32BitmapBuffer* _buffer, int _b
 		uint32* pixel = (uint32*)row;
 		for (int x = 0; x < _buffer->width; ++x)
 		{
-			/*
-
-				Pixel (32-bit)
-
-				Memory:		BB GG RR xx
-				Register:	xx RR GG BB
-
-			*/
-
 			uint8 blue = (x + _blue_offset);
 			uint8 green = (y + _green_offset);
 			uint8 red = _red_offset;
@@ -244,15 +261,6 @@ void Win32ClearBuffer(Win32BitmapBuffer _buffer, uint8 _red, uint8 _green, uint8
 		uint32* pixel = (uint32*)row;
 		for (int x = 0; x < _buffer.width; ++x)
 		{
-			/*
-
-			Pixel (32-bit)
-
-			Memory:		BB GG RR xx
-			Register:	xx RR GG BB
-
-			*/
-
 			*pixel++ = ((_red << 16) | (_green << 8) | _blue);
 		}
 
@@ -399,7 +407,7 @@ static_internal LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _mes
 			}
 			else if (VK_code == VK_ESCAPE)
 			{
-				OutputDebugString("esc pressed\n");
+
 			}
 			else if (VK_code == VK_SPACE)
 			{
