@@ -1,8 +1,16 @@
-#include <Windows.h>
-#include <Xinput.h>
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+// File:			win32_main.cpp																		//
+// Author:			Craig Jeffrey (craigjeffrey3@gmail.com)												//
+// Date:			25/07/2015																			//
+// Description:		Win32 main entry point & platform layer.											//
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+
+#include <windows.h>
+#include <xinput.h>
 #include <dsound.h>
 #include <cmath>
 #include <cstdio>
+#include "platform.h"
 #include "type_definitions.h"
 
 /*
@@ -26,13 +34,10 @@
 
 struct Win32BitmapBuffer
 {
-	// NOTE(Craig): Pixel layout.
-	/*
-		32-bit
-		Memory:		BB GG RR xx
-		Register:	xx RR GG BB
-	*/
-
+	// NOTE(Craig): Win32 pixel layout.
+	// 32-bit
+	// Memory:		BB GG RR xx
+	// Register:	xx RR GG BB
 	BITMAPINFO info;
 	void* memory;
 	int width;
@@ -234,26 +239,7 @@ static_internal void Win32LoadXInput()
 	}
 }
 
-static_internal void Win32RenderWeirdGradient(Win32BitmapBuffer* _buffer, int _blue_offset, int _green_offset, int _red_offset)
-{
-	uint8* row = (uint8*)_buffer->memory;
-	for (int y = 0; y < _buffer->height; ++y)
-	{
-		uint32* pixel = (uint32*)row;
-		for (int x = 0; x < _buffer->width; ++x)
-		{
-			uint8 blue = (x + _blue_offset);
-			uint8 green = (y + _green_offset);
-			uint8 red = _red_offset;
-
-			*pixel++ = ((red << 16) | (green << 8) | blue);
-		}
-
-		row += _buffer->pitch;
-	}
-}
-
-void Win32ClearBuffer(Win32BitmapBuffer _buffer, uint8 _red, uint8 _green, uint8 _blue)
+static_internal void Win32ClearBuffer(Win32BitmapBuffer _buffer, uint8 _red, uint8 _green, uint8 _blue)
 {
 	uint8* row = (uint8*)_buffer.memory;
 	for (int y = 0; y < _buffer.height; ++y)
@@ -305,7 +291,8 @@ static_internal void Win32DisplayBitmapToDevice(HDC _device_context, Win32Bitmap
 {
 	StretchDIBits(_device_context,
 				  0, 0, _client_width, _client_height,
-				  0, 0, _buffer->width, _buffer->height,
+				  0, 0, _client_width, _client_height,		// No scaling
+//				  0, 0, _buffer->width, _buffer->height,	// Scale buffer to client size
 				  _buffer->memory,
 				  &_buffer->info,
 				  DIB_RGB_COLORS, SRCCOPY);
@@ -441,7 +428,7 @@ static_internal LRESULT CALLBACK Win32MainWindowCallback(HWND _window, UINT _mes
 
 int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _command_line, int _command_show)
 {
-	Win32ResizeBitmapBuffer(&global_back_buffer, 1600, 900);
+	Win32ResizeBitmapBuffer(&global_back_buffer, 1920, 1080);
 	Win32LoadXInput();
 
 	LARGE_INTEGER temp_performance_counter_frequency;
@@ -544,7 +531,12 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					}
 				}
 
-				Win32RenderWeirdGradient(&global_back_buffer, x_offset, y_offset, 0);
+				BitmapBuffer bitmap_buffer = {};
+				bitmap_buffer.memory = global_back_buffer.memory;
+				bitmap_buffer.width = global_back_buffer.width;
+				bitmap_buffer.height = global_back_buffer.height;
+				bitmap_buffer.pitch = global_back_buffer.pitch;
+				AppRender(&bitmap_buffer);
 
 				DWORD play_cursor;
 				DWORD write_cursor;
