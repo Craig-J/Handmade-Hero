@@ -7,6 +7,9 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 #include <cstdint>
 
+// TODO(Craig): Remove cmath from here.
+#include <cmath>
+
 //~~~~~~ PREPROCESSOR ~~~~~~\\
 
 	// Use: Declaring static linkage

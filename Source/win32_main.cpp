@@ -5,13 +5,16 @@
 // Description:		Win32 main entry point & platform layer.											//
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
+#include "type_definitions.h"
+#include "platform.h"
+#include "platform.cpp"
+
+#include <malloc.h>
 #include <windows.h>
 #include <xinput.h>
 #include <dsound.h>
-#include <cmath>
 #include <cstdio>
-#include "platform.h"
-#include "type_definitions.h"
+
 
 /*
 	TODO(Craig)
@@ -169,7 +172,35 @@ static_internal void Win32InitializeDirectSound(HWND _window, int32 _samples_per
 	}
 }
 
-static_internal void Win32FillSoundBuffer(Win32AudioInfo* _audio_info, DWORD _byte_to_lock, DWORD _bytes_to_write)
+static_internal void Win32ClearBuffer(Win32AudioInfo* _buffer)
+{
+	VOID* region_1;
+	DWORD region_1_size;
+	VOID* region_2;
+	DWORD region_2_size;
+	if (SUCCEEDED(global_secondary_buffer->Lock(
+		0, _buffer->secondary_buffer_size,
+		&region_1, &region_1_size,
+		&region_2, &region_2_size,
+		0)))
+	{
+		uint8* sample_out = (uint8*)region_1;
+		for (DWORD byte_index = 0; byte_index < region_1_size; ++byte_index)
+		{
+			*sample_out++ = 0;
+		}
+
+		sample_out = (uint8*)region_2;
+		for (DWORD byte_index = 0; byte_index < region_2_size; ++byte_index)
+		{
+			*sample_out++ = 0;
+		}
+
+		global_secondary_buffer->Unlock(region_1, region_1_size, region_2, region_2_size);
+	}
+}
+
+static_internal void Win32FillAudioBuffer(Win32AudioInfo* _audio_info, DWORD _byte_to_lock, DWORD _bytes_to_write, AudioBuffer* _buffer)
 {
 	VOID* region_1;
 	DWORD region_1_size;
@@ -181,30 +212,23 @@ static_internal void Win32FillSoundBuffer(Win32AudioInfo* _audio_info, DWORD _by
 		&region_2, &region_2_size,
 		0)))
 	{
+		int16* sample_in = _buffer->samples;
 
-		int16* sample_out = (int16*)region_1;
 		DWORD region_1_sample_count = region_1_size / _audio_info->bytes_per_sample;
+		int16* sample_out = (int16*)region_1;
 		for (DWORD sample_index = 0; sample_index < region_1_sample_count; ++sample_index)
 		{
-			
-			real32 sine_value = sin(_audio_info->t_sine);
-			int16 sample_value = (int16)(sine_value * _audio_info->tone_volume);
-			*sample_out++ = sample_value;
-			*sample_out++ = sample_value;
-
-			_audio_info->t_sine += (2.0f * Pi32)/ (real32)_audio_info->wave_period;
+			*sample_out++ = *sample_in++;
+			*sample_out++ = *sample_in++;
 			++_audio_info->running_sample_index;
 		}
-		sample_out = (int16*)region_2;
+		
 		DWORD region_2_sample_count = region_2_size / _audio_info->bytes_per_sample;
+		sample_out = (int16*)region_2;
 		for (DWORD sample_index = 0; sample_index < region_2_sample_count; ++sample_index)
 		{
-			real32 sine_value = sin(_audio_info->t_sine);
-			int16 sample_value = (int16)(sine_value * _audio_info->tone_volume);
-			*sample_out++ = sample_value;
-			*sample_out++ = sample_value;
-
-			_audio_info->t_sine += (2.0f * Pi32) / (real32)_audio_info->wave_period;
+			*sample_out++ = *sample_in++;
+			*sample_out++ = *sample_in++;
 			++_audio_info->running_sample_index;
 		}
 
@@ -236,6 +260,21 @@ static_internal void Win32LoadXInput()
 	else
 	{
 		// TODO(Craig): Log that XInput failed to load.
+	}
+}
+
+static_internal void Win32ClearBuffer(Win32BitmapBuffer _buffer)
+{
+	uint8* row = (uint8*)_buffer.memory;
+	for (int y = 0; y < _buffer.height; ++y)
+	{
+		uint32* pixel = (uint32*)row;
+		for (int x = 0; x < _buffer.width; ++x)
+		{
+			*pixel++ = 0;
+		}
+
+		row += _buffer.pitch;
 	}
 }
 
@@ -462,9 +501,6 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 		{
 			HDC device_context = GetDC(window);
 
-			int x_offset = 0;
-			int y_offset = 0;
-
 			Win32AudioInfo audio_info = {};
 			audio_info.samples_per_second = 48000;
 			audio_info.tone_frequency = 256;
@@ -474,10 +510,10 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 			audio_info.bytes_per_sample = sizeof(int16) * 2;
 			audio_info.secondary_buffer_size = audio_info.samples_per_second * audio_info.bytes_per_sample;
 			audio_info.latency_sample_count = audio_info.samples_per_second / 15;
-
 			Win32InitializeDirectSound(window, audio_info.samples_per_second, audio_info.secondary_buffer_size);
-			Win32FillSoundBuffer(&audio_info, 0, audio_info.latency_sample_count * audio_info.bytes_per_sample);
+			Win32ClearBuffer(&audio_info);
 			global_secondary_buffer->Play(0, 0, DSBPLAY_LOOPING);
+			int16* samples = (int16*)VirtualAlloc(0, audio_info.secondary_buffer_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 			LARGE_INTEGER previous_counter;
 			QueryPerformanceCounter(&previous_counter);
@@ -531,21 +567,17 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					}
 				}
 
-				BitmapBuffer bitmap_buffer = {};
-				bitmap_buffer.memory = global_back_buffer.memory;
-				bitmap_buffer.width = global_back_buffer.width;
-				bitmap_buffer.height = global_back_buffer.height;
-				bitmap_buffer.pitch = global_back_buffer.pitch;
-				AppRender(&bitmap_buffer);
-
+				DWORD byte_to_lock;
+				DWORD target_cursor;
+				DWORD bytes_to_write;
 				DWORD play_cursor;
 				DWORD write_cursor;
+				bool32 sound_is_valid = false;
 				if (SUCCEEDED(global_secondary_buffer->GetCurrentPosition(&play_cursor, &write_cursor)))
 				{
-					DWORD byte_to_lock = (audio_info.running_sample_index * audio_info.bytes_per_sample) % audio_info.secondary_buffer_size;
-					DWORD target_cursor = (play_cursor + audio_info.latency_sample_count * audio_info.bytes_per_sample) % audio_info.secondary_buffer_size;
-					DWORD bytes_to_write;
-					
+					byte_to_lock = (audio_info.running_sample_index * audio_info.bytes_per_sample) % audio_info.secondary_buffer_size;
+					target_cursor = (play_cursor + audio_info.latency_sample_count * audio_info.bytes_per_sample) % audio_info.secondary_buffer_size;
+
 					if (byte_to_lock > target_cursor)
 					{
 						bytes_to_write = audio_info.secondary_buffer_size - byte_to_lock;
@@ -556,14 +588,29 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 						bytes_to_write = target_cursor - byte_to_lock;
 					}
 
-					Win32FillSoundBuffer(&audio_info, byte_to_lock, bytes_to_write);
+					sound_is_valid = true;
+				}
+
+				AudioBuffer audio_buffer = {};
+				audio_buffer.samples_per_second = audio_info.samples_per_second;
+				audio_buffer.sample_count = bytes_to_write / audio_info.bytes_per_sample;
+				audio_buffer.samples = samples;
+
+				BitmapBuffer bitmap_buffer = {};
+				bitmap_buffer.memory = global_back_buffer.memory;
+				bitmap_buffer.width = global_back_buffer.width;
+				bitmap_buffer.height = global_back_buffer.height;
+				bitmap_buffer.pitch = global_back_buffer.pitch;
+
+				AppUpdateAndRender(&bitmap_buffer, &audio_buffer);
+
+				if (sound_is_valid)
+				{
+					Win32FillAudioBuffer(&audio_info, byte_to_lock, bytes_to_write, &audio_buffer);
 				}
 
 				Win32ClientDimensions client = Win32GetClientDimensions(window);
 				Win32DisplayBitmapToDevice(device_context, &global_back_buffer, client.width, client.height);
-
-				++x_offset;
-				y_offset += 2;
 
 				uint64 cycle_count_end = __rdtsc();
 

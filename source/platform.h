@@ -20,10 +20,15 @@ struct BitmapBuffer
 	int pitch;
 };
 
+struct AudioBuffer
+{
+	int samples_per_second;
+	int sample_count;
+	int16* samples;
+};
 
-void AppUpdate();
-void AppRender(BitmapBuffer* buffer);
-void ClearBuffer(BitmapBuffer buffer, uint8 red, uint8 green, uint8 blue);
+static_internal void AppUpdateAndRender(BitmapBuffer* bitmap_buffer, AudioBuffer* audio_buffer);
+
 
 #define PLATFORM_H
 #endif
