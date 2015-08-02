@@ -147,11 +147,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="platform.cpp" />
-    <ClCompile Include="win32_main.cpp" />
+    <ClCompile Include="win32_platform.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="platform.h" />
     <ClInclude Include="type_definitions.h" />
+    <ClInclude Include="win32_platform.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

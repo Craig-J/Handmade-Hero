@@ -54,8 +54,17 @@ static_internal void RenderAudioOutput(AudioBuffer* _audio_buffer)
 	}
 }
 
-static_internal void AppUpdateAndRender(BitmapBuffer* _bitmap_buffer, AudioBuffer* _audio_buffer)
+void AppUpdateAndRender(BitmapBuffer* _bitmap_buffer, AudioBuffer* _audio_buffer)
 {
+	if (Input.IsAnalog())
+	{
+
+	}
+	else
+	{
+
+	}
+
 	RenderAudioOutput(_audio_buffer);
 	RenderWeirdGradientToBuffer(_bitmap_buffer, 0, 0, 0);
 }

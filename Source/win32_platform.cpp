@@ -1,20 +1,9 @@
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
-// File:			win32_main.cpp																		//
-// Author:			Craig Jeffrey (craigjeffrey3@gmail.com)												//
-// Date:			25/07/2015																			//
-// Description:		Win32 main entry point & platform layer.											//
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
-
-#include "type_definitions.h"
-#include "platform.h"
-#include "platform.cpp"
+#include "win32_platform.h"
 
 #include <malloc.h>
-#include <windows.h>
 #include <xinput.h>
 #include <dsound.h>
 #include <cstdio>
-
 
 /*
 	TODO(Craig)
@@ -34,38 +23,6 @@
 	- Hardware acceleration (OpenGL/D3D)
 	- GetKeyboardLayout
 */
-
-struct Win32BitmapBuffer
-{
-	// NOTE(Craig): Win32 pixel layout.
-	// 32-bit
-	// Memory:		BB GG RR xx
-	// Register:	xx RR GG BB
-	BITMAPINFO info;
-	void* memory;
-	int width;
-	int height;
-	int pitch;
-};
-
-struct Win32ClientDimensions
-{
-	int width;
-	int height;
-};
-
-struct Win32AudioInfo
-{
-	int samples_per_second;
-	int tone_frequency;
-	int tone_volume;
-	uint32 running_sample_index;
-	int wave_period;
-	int bytes_per_sample;
-	int secondary_buffer_size;
-	real32 t_sine;
-	int latency_sample_count;
-};
 
 // TODO(Craig): Change from global.
 static_global bool32 global_running;
@@ -503,10 +460,7 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 
 			Win32AudioInfo audio_info = {};
 			audio_info.samples_per_second = 48000;
-			audio_info.tone_frequency = 256;
-			audio_info.tone_volume = 9001;
 			audio_info.running_sample_index = 0;
-			audio_info.wave_period = audio_info.samples_per_second / audio_info.tone_frequency;
 			audio_info.bytes_per_sample = sizeof(int16) * 2;
 			audio_info.secondary_buffer_size = audio_info.samples_per_second * audio_info.bytes_per_sample;
 			audio_info.latency_sample_count = audio_info.samples_per_second / 15;

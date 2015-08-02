@@ -9,11 +9,11 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="win32_main.cpp">
-      <Filter>Handmade_Hero\Platform Entry</Filter>
-    </ClCompile>
     <ClCompile Include="platform.cpp">
       <Filter>Handmade_Hero</Filter>
+    </ClCompile>
+    <ClCompile Include="win32_platform.cpp">
+      <Filter>Handmade_Hero\Platform Entry</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -22,6 +22,9 @@
     </ClInclude>
     <ClInclude Include="platform.h">
       <Filter>Handmade_Hero</Filter>
+    </ClInclude>
+    <ClInclude Include="win32_platform.h">
+      <Filter>Handmade_Hero\Platform Entry</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

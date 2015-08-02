@@ -3,7 +3,7 @@
 // File:		|	platform.h																			//
 // Author:		|	Craig Jeffrey (craigjeffrey3@gmail.com)												//
 // Date:		|	25/07/2015																			//
-// Description:	|	Platform-independent adaption.														//
+// Description:	|	Header for platform-independent layer.												//
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 #include "type_definitions.h"
 
@@ -27,7 +27,7 @@ struct AudioBuffer
 	int16* samples;
 };
 
-static_internal void AppUpdateAndRender(BitmapBuffer* bitmap_buffer, AudioBuffer* audio_buffer);
+void AppUpdateAndRender(BitmapBuffer* bitmap_buffer, AudioBuffer* audio_buffer);
 
 
 #define PLATFORM_H
