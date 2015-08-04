@@ -1,6 +1,6 @@
 #include "win32_platform.h"
 
-#include <malloc.h>
+//#include <malloc.h>
 #include <xinput.h>
 #include <dsound.h>
 #include <cstdio>
@@ -218,6 +218,12 @@ static_internal void Win32LoadXInput()
 	{
 		// TODO(Craig): Log that XInput failed to load.
 	}
+}
+
+static_internal void Win32ProcessXInputDigitalButton(WORD _XInput_button_states, DWORD _button_bit, ButtonState* _old, ButtonState* _new)
+{
+	_new->ended_down = ((_XInput_button_states & _button_bit) == _button_bit);
+	_new->transition_count = (_old->ended_down != _new->ended_down) ? 1 : 0;
 }
 
 static_internal void Win32ClearBuffer(Win32BitmapBuffer _buffer)
@@ -469,6 +475,10 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 			global_secondary_buffer->Play(0, 0, DSBPLAY_LOOPING);
 			int16* samples = (int16*)VirtualAlloc(0, audio_info.secondary_buffer_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
+			Input input[2] = {};
+			Input* new_input = &input[0];
+			Input* old_input = &input[1];
+
 			LARGE_INTEGER previous_counter;
 			QueryPerformanceCounter(&previous_counter);
 
@@ -490,10 +500,19 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					DispatchMessage(&message);
 				}
 
-				for (DWORD controller = 0; controller < XUSER_MAX_COUNT; ++controller)
+				int max_controller_count = XUSER_MAX_COUNT;
+				if (max_controller_count > ArrayCount(new_input->controllers))
 				{
+					max_controller_count = ArrayCount(new_input->controllers);
+				}
+
+				for (DWORD controller_index = 0; controller_index < max_controller_count; ++controller_index)
+				{
+					Controller* old_controller = &old_input->controllers[controller_index];
+					Controller* new_controller = &new_input->controllers[controller_index];
+
 					XINPUT_STATE controller_state;
-					if (XInputGetState(controller, &controller_state) == ERROR_SUCCESS)
+					if (XInputGetState(controller_index, &controller_state) == ERROR_SUCCESS)
 					{
 						// NOTE(Craig): Controller available.
 						XINPUT_GAMEPAD* pad = &controller_state.Gamepad;
@@ -502,17 +521,38 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 						bool32 down = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
 						bool32 left = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
 						bool32 right = (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
-						bool32 start = (pad->wButtons & XINPUT_GAMEPAD_START);
-						bool32 back = (pad->wButtons & XINPUT_GAMEPAD_BACK);
-						bool32 left_shoulder = (pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
-						bool32 right_shoulder = (pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
-						bool32 A = (pad->wButtons & XINPUT_GAMEPAD_A);
-						bool32 B = (pad->wButtons & XINPUT_GAMEPAD_B);
-						bool32 X = (pad->wButtons & XINPUT_GAMEPAD_X);
-						bool32 Y = (pad->wButtons & XINPUT_GAMEPAD_Y);
 
-						int16 stick_x = pad->sThumbLX;
-						int16 stick_y = pad->sThumbLY;
+						new_controller->is_analog = true;
+						new_controller->start_x = old_controller->end_x;
+						new_controller->start_y = old_controller->end_y;
+
+						real32 x;
+						if (pad->sThumbLX < 0)
+						{
+							x = (real32)pad->sThumbLX / 32768.0f;
+						}
+						else
+						{
+							x = (real32)pad->sThumbLX / 32767.0f;
+						}
+						new_controller->min_x = new_controller->max_x = new_controller->end_x = x;
+						real32 y;
+						if (pad->sThumbLX < 0)
+						{
+							y = (real32)pad->sThumbLY / 32768.0f;
+						}
+						else
+						{
+							y = (real32)pad->sThumbLY / 32767.0f;
+						}
+						new_controller->min_y = new_controller->max_y = new_controller->end_y = y;
+
+						Win32ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &old_controller->left_shoulder, &new_controller->left_shoulder);
+						Win32ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &old_controller->right_shoulder, &new_controller->right_shoulder);
+						Win32ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_A, &old_controller->up, &new_controller->up);
+						Win32ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_B, &old_controller->left, &new_controller->left);
+						Win32ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_X, &old_controller->down, &new_controller->down);
+						Win32ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_Y, &old_controller->right, &new_controller->right);
 
 					}
 					else
@@ -556,7 +596,7 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 				bitmap_buffer.height = global_back_buffer.height;
 				bitmap_buffer.pitch = global_back_buffer.pitch;
 
-				AppUpdateAndRender(&bitmap_buffer, &audio_buffer);
+				AppUpdateAndRender(new_input, &bitmap_buffer, &audio_buffer);
 
 				if (sound_is_valid)
 				{
@@ -583,6 +623,10 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 
 				previous_cycle_count = cycle_count_end;
 				previous_counter = counter_end;
+
+				Input* temp = new_input;
+				new_input = old_input;
+				old_input = temp;
 			}
 		}
 		else

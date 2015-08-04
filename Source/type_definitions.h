@@ -12,6 +12,8 @@
 
 //~~~~~~ PREPROCESSOR ~~~~~~\\
 
+#define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+
 	// Use: Declaring static linkage
 	#define static_internal static
 

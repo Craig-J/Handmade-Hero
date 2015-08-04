@@ -54,17 +54,28 @@ static_internal void RenderAudioOutput(AudioBuffer* _audio_buffer)
 	}
 }
 
-void AppUpdateAndRender(BitmapBuffer* _bitmap_buffer, AudioBuffer* _audio_buffer)
+void AppUpdateAndRender(Input* _input, BitmapBuffer* _bitmap_buffer, AudioBuffer* _audio_buffer)
 {
-	if (Input.IsAnalog())
-	{
+	static_local_persistant int red_offset = 0;
+	static_local_persistant int green_offset = 0;
+	static_local_persistant int blue_offset = 0;
+	static_local_persistant int tone_frequency = 256;
 
+	Controller* controller_0 = &_input->controllers[0];
+	if (controller_0->is_analog)
+	{
+		// NOTE(Craig): Analog-only controls here.
 	}
 	else
 	{
+		// NOTE(Craig): Digital-only controls here.
+	}
 
+	if (controller_0->down.ended_down)
+	{
+		green_offset += 1;
 	}
 
 	RenderAudioOutput(_audio_buffer);
-	RenderWeirdGradientToBuffer(_bitmap_buffer, 0, 0, 0);
+	RenderWeirdGradientToBuffer(_bitmap_buffer, blue_offset, green_offset, red_offset);
 }
