@@ -5,7 +5,6 @@
 // Date:		|	August 2015																			//
 // Description:	|	Windows platform layer.																//
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
-#include "common.h"
 #include "abstract.h"
 #include <windows.h>
 

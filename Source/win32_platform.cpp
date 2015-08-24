@@ -22,40 +22,62 @@
 	- GetKeyboardLayout
 */
 
-// TODO(Craig): Change from global.
-static_global bool32 global_running;
-static_global Win32::BitmapBuffer global_back_buffer;
-static_global LPDIRECTSOUNDBUFFER global_secondary_buffer;
-
-// NOTE(Craig): XInputGetState macro/typedef/stub.
-//		Description
-//		First define a macro to create functions with correct signature.
-//		Second create a type with this function signature using the macro.
-//		Third make a default stub function using the macro.
-//		Fourth create a function pointer that points to the stub function.
-//		Fifth define the functions normal name to reference the function pointer instead.
-#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
-typedef X_INPUT_GET_STATE(XInputGetState_Type);
-X_INPUT_GET_STATE(XInputGetState_Stub)
+namespace
 {
-	return ERROR_DEVICE_NOT_CONNECTED;
-}
-static_global XInputGetState_Type* XInputGetState_FuncPtr = XInputGetState_Stub;
+
+	// TODO(Craig): Change from global.
+	static_global bool32 global_running;
+	static_global Win32::BitmapBuffer global_back_buffer;
+	static_global LPDIRECTSOUNDBUFFER global_secondary_buffer;
+
+	// NOTE(Craig): XInputGetState macro/typedef/stub.
+	//		Description
+	//		First define a macro to create functions with correct signature.
+	//		Second create a type with this function signature using the macro.
+	//		Third make a default stub function using the macro.
+	//		Fourth create a function pointer that points to the stub function.
+	//		Fifth define the functions normal name to reference the function pointer instead.
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
+	typedef X_INPUT_GET_STATE(XInputGetState_Type);
+	X_INPUT_GET_STATE(XInputGetState_Stub)
+	{
+		return ERROR_DEVICE_NOT_CONNECTED;
+	}
+	static_global XInputGetState_Type* XInputGetState_FuncPtr = XInputGetState_Stub;
 #define XInputGetState XInputGetState_FuncPtr
 
-// NOTE(Craig): XInputSetState macro/typedef/stub.
+	// NOTE(Craig): XInputSetState macro/typedef/stub.
 #define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
-typedef X_INPUT_SET_STATE(XInputSetState_Type);
-X_INPUT_SET_STATE(XInputSetState_Stub)
-{
-	return ERROR_DEVICE_NOT_CONNECTED;
-}
-static_global XInputSetState_Type* XInputSetState_FuncPtr = XInputSetState_Stub;
+	typedef X_INPUT_SET_STATE(XInputSetState_Type);
+	X_INPUT_SET_STATE(XInputSetState_Stub)
+	{
+		return ERROR_DEVICE_NOT_CONNECTED;
+	}
+	static_global XInputSetState_Type* XInputSetState_FuncPtr = XInputSetState_Stub;
 #define XInputSetState XInputSetState_FuncPtr
 
-// NOTE(Craig): DirectSoundCreate macro/typedef.
+	// NOTE(Craig): DirectSoundCreate macro/typedef.
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
-typedef DIRECT_SOUND_CREATE(DirectSoundCreate_Type);
+	typedef DIRECT_SOUND_CREATE(DirectSoundCreate_Type);
+
+}
+
+// File I/O Win32 Implementations
+// Note:	These are a service to the platform independent layer,
+//			as such they are not part of the win32 namespace.
+
+void* DEBUGReadEntireFile(char* _filename)
+{
+
+}
+void DEBUGFreeFileMemory(void* _memory)
+{
+
+}
+bool32 DEBUGWriteEntireFile(char* _filename, uint32 _memory_size, void* _memory)
+{
+
+}
 
 namespace Win32
 {
@@ -281,9 +303,9 @@ namespace Win32
 			0, 0, _client_width, _client_height,
 			0, 0, _client_width, _client_height,	// No scaling
 //			0, 0, _buffer->width, _buffer->height,	// Scale buffer to client size
-_buffer->memory,
-&_buffer->info,
-DIB_RGB_COLORS, SRCCOPY);
+			_buffer->memory,
+			&_buffer->info,
+			DIB_RGB_COLORS, SRCCOPY);
 	}
 
 	static_internal ClientDimensions GetClientDimensions(HWND _window)
@@ -465,11 +487,19 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 
 			int16* samples = (int16*)VirtualAlloc(0, audio_info.secondary_buffer_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-			Abstract::AppMemory memory = {};
+#if (INTERNAL_BUILD == true)
+			LPVOID base_address = (LPVOID)Terabytes(2);
+#else
+			LPVOID base_address = 0;
+#endif
+
+			Abstract::Memory memory = {};
 			memory.permanent_storage_size = Megabytes(64);
-			memory.permanent_storage = VirtualAlloc(0, memory.permanent_storage_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-			memory.transient_storage_size = Gigabytes((uint64)4);
-			memory.transient_storage = VirtualAlloc(0, memory.transient_storage_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			memory.transient_storage_size = Gigabytes(4);
+
+			uint64 total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
+			memory.permanent_storage = VirtualAlloc(base_address, total_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			memory.transient_storage = ((uint8*)memory.permanent_storage + memory.permanent_storage_size);
 
 			if (samples && memory.permanent_storage && memory.transient_storage)
 			{
@@ -594,7 +624,7 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					bitmap_buffer.height = global_back_buffer.height;
 					bitmap_buffer.pitch = global_back_buffer.pitch;
 
-					AppUpdateAndRender(&memory, new_input, &bitmap_buffer, &audio_buffer);
+					UpdateAndRender(&memory, new_input, &bitmap_buffer, &audio_buffer);
 
 					if (sound_is_valid)
 					{

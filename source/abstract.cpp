@@ -55,7 +55,7 @@ namespace Abstract
 		}
 	}
 
-	void AppUpdateAndRender(AppMemory* _memory, Input* _input, BitmapBuffer* _bitmap_buffer, AudioBuffer* _audio_buffer)
+	void UpdateAndRender(Memory* _memory, Input* _input, BitmapBuffer* _bitmap_buffer, AudioBuffer* _audio_buffer)
 	{
 		Assert(sizeof(GameState) <= _memory->permanent_storage_size);
 
@@ -63,6 +63,13 @@ namespace Abstract
 		if (!_memory->is_initialized)
 		{
 			// Note(Craig): Everything is default zero initialized. See Header.
+			char* filename = "test.bmp";
+
+			void* bitmap_memory = DEBUGReadEntireFile(filename);
+			if (bitmap_memory)
+			{
+				DEBUGFreeFileMemory(bitmap_memory);
+			}
 
 			game_state->tone_frequency = 256;
 

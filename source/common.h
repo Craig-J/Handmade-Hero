@@ -6,30 +6,16 @@
 // Description:	|	Commonly required typedefs, definitions, structs, etc.								//
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 #include <cstdint>
-
-// TODO(Craig): Remove cmath from here.
+// TODO(Craig): Remove cmath in favor of own math lib.
 #include <cmath>
 
 //~~~~~~ PREPROCESSOR ~~~~~~\\
 
-	#define NoAssert 0
+	#define Kilobytes(value) ((value)*1024LL)
+	#define Megabytes(value) (Kilobytes(value) * 1024LL)
+	#define Gigabytes(value) (Megabytes(value) * 1024LL)
+	#define Terabytes(value) (Gigabytes(value) * 1024LL)
 
-	#if defined(DEBUG_BUILD) && (NoAssert == 0)
-
-		#define Assert(expression) if(!(expression)) {*(int*)0 = 0;}
-
-	#elif !defined(RELEASE_BUILD) || (NoAssert == 1)
-
-		#define Assert(expression)
-
-	#else
-	#error "Unknown Build Type"
-	#endif
-
-	#define Kilobytes(value) ((value)*1024)
-	#define Megabytes(value) (Kilobytes(value) * 1024)
-	#define Gigabytes(value) (Megabytes(value) * 1024)
-	#define Terabytes(value) (Gigabytes(value) * 1024)
 	#define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
 	// Use: Declaring static linkage
@@ -76,10 +62,10 @@
 		};
 
 		static_global RGB Black = { 0, 0, 0 };
+		static_global RGB White = { 255, 255, 255 };
 		static_global RGB Red = { 255, 0, 0 };
 		static_global RGB Green = { 0, 255, 0 };
 		static_global RGB Blue = { 0, 0, 255 };
-		static_global RGB White = { 255, 255, 255 };
 	}
 
 #define COMMON_H

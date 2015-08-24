@@ -26,5 +26,8 @@
     <ClInclude Include="common.h">
       <Filter>Handmade_Hero</Filter>
     </ClInclude>
+    <ClInclude Include="build.h">
+      <Filter>Handmade_Hero</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

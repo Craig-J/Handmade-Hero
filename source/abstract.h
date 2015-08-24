@@ -6,6 +6,7 @@
 // Description:	|	Platform-independent abstraction layer.												//
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 #include "common.h"
+#include "build.h"
 
 namespace Abstract
 {
@@ -69,7 +70,7 @@ namespace Abstract
 		Controller controllers[4];
 	};
 
-	struct AppMemory
+	struct Memory
 	{
 		bool32 is_initialized;
 		uint64 permanent_storage_size;
@@ -78,7 +79,7 @@ namespace Abstract
 		void* transient_storage; // NOTE(Craig): Required to be zeroed at initialization (VirtualAlloc does this automatically).
 	};
 
-	void AppUpdateAndRender(AppMemory* memory, Input* input, BitmapBuffer* bitmap_buffer, AudioBuffer* audio_buffer);
+	void UpdateAndRender(Memory* memory, Input* input, BitmapBuffer* bitmap_buffer, AudioBuffer* audio_buffer);
 
 	struct GameState
 	{
@@ -87,5 +88,5 @@ namespace Abstract
 	};
 
 }
-#define PLATFORM_H
+#define ABSTRACT_H
 #endif
