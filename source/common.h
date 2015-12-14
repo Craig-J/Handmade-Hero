@@ -8,6 +8,7 @@
 #include <cstdint>
 // TODO(Craig): Remove cmath in favor of own math lib.
 #include <cmath>
+#include "build.h"
 
 //~~~~~~ PREPROCESSOR ~~~~~~\\
 
@@ -46,7 +47,7 @@
 	typedef float real32;
 	typedef double real64;
 
-//~~~~~~ STRUCTS ~~~~~~\\
+//~~~~~~ MISC ~~~~~~\\
 
 	namespace Colour
 	{
@@ -67,6 +68,26 @@
 		static_global RGB Green = { 0, 255, 0 };
 		static_global RGB Blue = { 0, 0, 255 };
 	}
+
+	inline uint32 TruncateUInt64(uint64 _value)
+	{
+		Assert(_value <= UINT32_MAX);
+		uint32 result = (uint32)_value;
+		return result;
+	}
+
+//~~~~~~ FILE I/O ~~~~~~\\
+
+	struct FileBuffer
+	{
+		uint32 size;
+		void* memory;
+	};
+
+	// NOTE(Craig): Implemented in platform-specific layer.
+	FileBuffer ReadEntireFile(char* filename);
+	void FreeFileMemory(void* memory);
+	bool32 WriteEntireFile(char* filename, uint32 memory_size, void* memory);
 
 #define COMMON_H
 #endif

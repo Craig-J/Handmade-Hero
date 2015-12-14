@@ -63,12 +63,14 @@ namespace Abstract
 		if (!_memory->is_initialized)
 		{
 			// Note(Craig): Everything is default zero initialized. See Header.
-			char* filename = "test.bmp";
+			
+			char* filename = __FILE__;
 
-			void* bitmap_memory = DEBUGReadEntireFile(filename);
-			if (bitmap_memory)
+			FileBuffer file_buffer = ReadEntireFile(filename);
+			if (file_buffer.memory)
 			{
-				DEBUGFreeFileMemory(bitmap_memory);
+				WriteEntireFile("test.out", file_buffer.size, file_buffer.memory);
+				FreeFileMemory(file_buffer.memory);
 			}
 
 			game_state->tone_frequency = 256;

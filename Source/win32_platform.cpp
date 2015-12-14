@@ -4,7 +4,7 @@
 #include <cstdio>
 
 /*
-	TODO(Craig)
+	TODO(Craig): Platform TODO List
 
 	- Saved game locations
 	- Handle to own executable
@@ -59,23 +59,6 @@ namespace
 	// NOTE(Craig): DirectSoundCreate macro/typedef.
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 	typedef DIRECT_SOUND_CREATE(DirectSoundCreate_Type);
-
-}
-
-// File I/O Win32 Implementations
-// Note:	These are a service to the platform independent layer,
-//			as such they are not part of the win32 namespace.
-
-void* DEBUGReadEntireFile(char* _filename)
-{
-
-}
-void DEBUGFreeFileMemory(void* _memory)
-{
-
-}
-bool32 DEBUGWriteEntireFile(char* _filename, uint32 _memory_size, void* _memory)
-{
 
 }
 
@@ -158,11 +141,10 @@ namespace Win32
 		DWORD region_1_size;
 		VOID* region_2;
 		DWORD region_2_size;
-		if (SUCCEEDED(global_secondary_buffer->Lock(
-			0, _buffer->secondary_buffer_size,
-			&region_1, &region_1_size,
-			&region_2, &region_2_size,
-			0)))
+		if (SUCCEEDED(global_secondary_buffer->Lock(0, _buffer->secondary_buffer_size,
+													&region_1, &region_1_size,
+													&region_2, &region_2_size,
+													0)))
 		{
 			uint8* sample_out = (uint8*)region_1;
 			for (DWORD byte_index = 0; byte_index < region_1_size; ++byte_index)
@@ -186,11 +168,10 @@ namespace Win32
 		DWORD region_1_size;
 		VOID* region_2;
 		DWORD region_2_size;
-		if (SUCCEEDED(global_secondary_buffer->Lock(
-			_byte_to_lock, _bytes_to_write,
-			&region_1, &region_1_size,
-			&region_2, &region_2_size,
-			0)))
+		if (SUCCEEDED(global_secondary_buffer->Lock(_byte_to_lock, _bytes_to_write,
+													&region_1, &region_1_size,
+													&region_2, &region_2_size,
+													0)))
 		{
 			int16* sample_in = _buffer->samples;
 
@@ -300,12 +281,12 @@ namespace Win32
 	static_internal void DisplayBitmapToDevice(HDC _device_context, BitmapBuffer* _buffer, int _client_width, int _client_height)
 	{
 		StretchDIBits(_device_context,
-			0, 0, _client_width, _client_height,
-			0, 0, _client_width, _client_height,	// No scaling
-//			0, 0, _buffer->width, _buffer->height,	// Scale buffer to client size
-			_buffer->memory,
-			&_buffer->info,
-			DIB_RGB_COLORS, SRCCOPY);
+					  0, 0, _client_width, _client_height,
+					  0, 0, _client_width, _client_height,		// No scaling
+//					  0, 0, _buffer->width, _buffer->height,	// Scale buffer to client size
+					  _buffer->memory,
+					  &_buffer->info,
+					  DIB_RGB_COLORS, SRCCOPY);
 	}
 
 	static_internal ClientDimensions GetClientDimensions(HWND _window)
@@ -456,19 +437,18 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 
 	if (RegisterClass(&window_class))
 	{
-		HWND window = CreateWindowEx(
-			0,
-			window_class.lpszClassName,
-			"Handmade Hero",
-			WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-			CW_USEDEFAULT,
-			CW_USEDEFAULT,
-			CW_USEDEFAULT,
-			CW_USEDEFAULT,
-			0,
-			0,
-			_instance,
-			0);
+		HWND window = CreateWindowEx(0,
+									 window_class.lpszClassName,
+									 "Handmade Hero",
+									 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+									 CW_USEDEFAULT,
+									 CW_USEDEFAULT,
+									 CW_USEDEFAULT,
+									 CW_USEDEFAULT,
+									 0,
+									 0,
+									 _instance,
+									 0);
 
 		if (window)
 		{
@@ -673,4 +653,87 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 	}
 
 	return EXIT_SUCCESS;
+}
+
+// DEBUG IMPLEMENTATIONS
+
+FileBuffer ReadEntireFile(char* _filename)
+{
+	FileBuffer result = {};
+
+	HANDLE file_handle = CreateFile(_filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	if (file_handle != INVALID_HANDLE_VALUE)
+	{
+		LARGE_INTEGER file_size;
+		if (GetFileSizeEx(file_handle, &file_size))
+		{
+			// NOTE(Craig): ReadFile takes DWORD file size, max read is 4GB.
+			uint32 file_size_32 = TruncateUInt64(file_size.QuadPart);
+			result.memory = VirtualAlloc(0, file_size_32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			if (result.memory)
+			{
+				DWORD bytes_read;
+				if (ReadFile(file_handle, result.memory, file_size_32, &bytes_read, 0) && (file_size_32 == bytes_read))
+				{
+					// NOTE(Craig): Read success
+					result.size = file_size_32;
+				}
+				else
+				{
+					// NOTE(Craig): Read file failure, so free memory
+					// TODO(Craig): Logging
+					FreeFileMemory(result.memory);
+					result.memory = 0;
+				}
+			}
+			else
+			{
+				// TODO(Craig): Logging
+			}
+		}
+		else
+		{
+			// TODO(Craig): Logging
+		}
+		CloseHandle(file_handle);
+	}
+	else
+	{
+		// TODO(Craig): Logging
+	}
+	return result;
+}
+
+void FreeFileMemory(void* _memory)
+{
+	if (_memory)
+	{
+		VirtualFree(_memory, 0, MEM_RELEASE);
+	}
+}
+
+bool32 WriteEntireFile(char* _filename, uint32 _memory_size, void* _memory)
+{
+	bool32 result = false;
+	HANDLE file_handle = CreateFile(_filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+	if (file_handle != INVALID_HANDLE_VALUE)
+	{
+		DWORD bytes_written;
+		if (WriteFile(file_handle, _memory, _memory_size, &bytes_written, 0))
+		{
+			// NOTE(Craig): Write success
+			result = (bytes_written == _memory_size);
+		}
+		else
+		{
+			// TODO(Craig): Logging
+		}
+
+		CloseHandle(file_handle);
+	}
+	else
+	{
+		// TODO(Craig): Logging
+	}
+	return result;
 }

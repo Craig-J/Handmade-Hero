@@ -55,6 +55,7 @@
       <PreprocessorDefinitions>DEBUG_BUILD; PLATFORM_WINDOWS;</PreprocessorDefinitions>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <UseFullPaths>true</UseFullPaths>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -71,6 +72,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>RELEASE_BUILD; PLATFORM_WINDOWS;</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
+      <UseFullPaths>true</UseFullPaths>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
