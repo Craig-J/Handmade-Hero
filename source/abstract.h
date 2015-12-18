@@ -10,6 +10,12 @@
 
 namespace Abstract
 {
+	struct AudioBuffer
+	{
+		int samples_per_second;
+		int sample_count;
+		int16* samples;
+	};
 
 	struct BitmapBuffer
 	{
@@ -17,13 +23,6 @@ namespace Abstract
 		int width;
 		int height;
 		int pitch;
-	};
-
-	struct AudioBuffer
-	{
-		int samples_per_second;
-		int sample_count;
-		int16* samples;
 	};
 
 	struct ButtonState
@@ -36,39 +35,51 @@ namespace Abstract
 
 	struct Controller
 	{
+		bool32 is_connected;
 		bool32 is_analog;
 
-		real32 start_x;
-		real32 start_y;
-
-		real32 min_x;
-		real32 min_y;
-
-		real32 max_x;
-		real32 max_y;
-
-		real32 end_x;
-		real32 end_y;
+		real32 stick_average_x;
+		real32 stick_average_y;
 
 		union
 		{
-			ButtonState buttons[6];
+			ButtonState buttons[12];
 			struct
 			{
-				ButtonState up;
-				ButtonState down;
-				ButtonState left;
-				ButtonState right;
+				ButtonState stick_up;
+				ButtonState stick_down;
+				ButtonState stick_left;
+				ButtonState stick_right;
+
+				/*ButtonState pad_up;
+				ButtonState pad_down;
+				ButtonState pad_left;
+				ButtonState pad_right;*/
+
+				ButtonState action_up;
+				ButtonState action_down;
+				ButtonState action_left;
+				ButtonState action_right;
+
 				ButtonState left_shoulder;
 				ButtonState right_shoulder;
+
+				ButtonState start;
+				ButtonState back;
 			};
 		};
 	};
 
 	struct Input
 	{
-		Controller controllers[4];
+		Controller controllers[5];
 	};
+	inline Controller* GetController(Input* _input, uint8 _controller_index)
+	{
+		Assert(_controller_index < ArrayCount(_input->controllers));
+		Controller* result = &_input->controllers[_controller_index];
+		return result;
+	}
 
 	struct Memory
 	{
@@ -79,14 +90,13 @@ namespace Abstract
 		void* transient_storage; // NOTE(Craig): Required to be zeroed at initialization (VirtualAlloc does this automatically).
 	};
 
-	void UpdateAndRender(Memory* memory, Input* input, BitmapBuffer* bitmap_buffer, AudioBuffer* audio_buffer);
-
 	struct GameState
 	{
 		int tone_frequency;
 		Colour::RGB gradient_offset;
 	};
 
+	void UpdateAndRender(Memory* memory, Input* input, BitmapBuffer* bitmap_buffer, AudioBuffer* audio_buffer);
 }
 #define ABSTRACT_H
 #endif

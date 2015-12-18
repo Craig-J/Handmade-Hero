@@ -10,8 +10,8 @@ namespace Abstract
 			uint32* pixel = (uint32*)row;
 			for (int x = 0; x < _buffer->width; ++x)
 			{
-				uint8 blue = (x + _offset.blue);
-				uint8 green = (y + _offset.green);
+				uint8 blue = (uint8)(x + _offset.blue);
+				uint8 green = (uint8)(y + _offset.green);
 				uint8 red = _offset.red;
 
 				*pixel++ = ((red << 16) | (green << 8) | blue);
@@ -21,7 +21,7 @@ namespace Abstract
 		}
 	}
 
-	static_internal void ClearBuffer(BitmapBuffer _buffer, Colour::RGB _clear_colour = Colour::Black)
+	static_internal void ClearBitmapBuffer(BitmapBuffer _buffer, Colour::RGB _clear_colour = Colour::Black)
 	{
 		uint8* row = (uint8*)_buffer.memory;
 		for (int y = 0; y < _buffer.height; ++y)
@@ -78,19 +78,32 @@ namespace Abstract
 			_memory->is_initialized = true;
 		}
 
-		Controller* controller_0 = &_input->controllers[0];
-		if (controller_0->is_analog)
+		for (uint8 controller_index = 0; controller_index < ArrayCount(_input->controllers); ++controller_index)
 		{
-			// NOTE(Craig): Analog-only controls here.
-		}
-		else
-		{
-			// NOTE(Craig): Digital-only controls here.
-		}
+			Controller* controller = GetController(_input, controller_index);
+			if (controller->is_analog)
+			{
+				// NOTE(Craig): Analog-only controls here.
+				game_state->gradient_offset.blue += (uint8)(4.0f*controller->stick_average_x);
+				game_state->tone_frequency = 256 + (int)(128.0f*controller->stick_average_y);
+			}
+			else
+			{
+				// NOTE(Craig): Digital-only controls here.
+				if (controller->stick_left.ended_down)
+				{
+					game_state->gradient_offset.blue -= 1;
+				}
+				else if (controller->stick_right.ended_down)
+				{
+					game_state->gradient_offset.blue += 1;
+				}
+			}
 
-		if (controller_0->down.ended_down) 
-		{
-			game_state->gradient_offset.green += 1;
+			if (controller->action_down.ended_down)
+			{
+				game_state->gradient_offset.green += 1;
+			}
 		}
 
 		RenderAudioOutput(_audio_buffer);

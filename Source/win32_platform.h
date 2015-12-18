@@ -10,6 +10,14 @@
 
 namespace Win32
 {
+	struct AudioInfo
+	{
+		int samples_per_second;
+		uint32 running_sample_index;
+		int bytes_per_sample;
+		int secondary_buffer_size;
+		int latency_sample_count;
+	};
 
 	struct BitmapBuffer : public Abstract::BitmapBuffer
 	{
@@ -25,16 +33,6 @@ namespace Win32
 		int width;
 		int height;
 	};
-
-	struct AudioInfo
-	{
-		int samples_per_second;
-		uint32 running_sample_index;
-		int bytes_per_sample;
-		int secondary_buffer_size;
-		int latency_sample_count;
-	};
-
 }
 
 #define WIN32_H

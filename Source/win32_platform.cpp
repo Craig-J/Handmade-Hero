@@ -64,7 +64,7 @@ namespace
 
 namespace Win32
 {
-
+	// AUDIO
 	static_internal void InitializeDirectSound(HWND _window, int32 _samples_per_second, int32 _buffer_size)
 	{
 		HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
@@ -197,6 +197,7 @@ namespace Win32
 		}
 	}
 
+	// INPUT
 	static_internal void LoadXInput()
 	{
 		HMODULE XInputLibrary = LoadLibrary("xinput1_4.dll");
@@ -230,6 +231,30 @@ namespace Win32
 		_new->transition_count = (_old->ended_down != _new->ended_down) ? 1 : 0;
 	}
 
+	static_internal real32 ProcessXInputAnalogStick(SHORT _value, SHORT _dead_zone_threshold)
+	{
+		real32 result = 0;
+
+		if (_value < -_dead_zone_threshold)
+		{
+			result = (real32)((_value + _dead_zone_threshold) / (32768.0f - _dead_zone_threshold));
+		}
+		else if (_value > _dead_zone_threshold)
+		{
+			result = (real32)((_value - _dead_zone_threshold) / (32767.0f - _dead_zone_threshold));
+		}
+
+		return result;
+	}
+
+	static_internal void ProcessKeyboardMessage(Abstract::ButtonState* _new, bool32 _is_down)
+	{
+		Assert(_new->ended_down != _is_down);
+		_new->ended_down = _is_down;
+		++_new->transition_count;
+	}
+
+	// GRAPHICS
 	static_internal void ClearBitmapBuffer(BitmapBuffer _buffer, Colour::RGB _colour = Colour::Black)
 	{
 		uint8* row = (uint8*)_buffer.memory;
@@ -266,7 +291,7 @@ namespace Win32
 		_buffer->info.bmiHeader.biWidth = _width;
 		_buffer->info.bmiHeader.biHeight = -_height;
 		_buffer->info.bmiHeader.biPlanes = 1;
-		_buffer->info.bmiHeader.biBitCount = 8 * bytes_per_pixel;
+		_buffer->info.bmiHeader.biBitCount = (WORD)(8 * bytes_per_pixel);
 		_buffer->info.bmiHeader.biCompression = BI_RGB;
 
 		int bitmap_memory_size = (_width * _height) * bytes_per_pixel;
@@ -289,6 +314,7 @@ namespace Win32
 					  DIB_RGB_COLORS, SRCCOPY);
 	}
 
+	// WINDOW
 	static_internal ClientDimensions GetClientDimensions(HWND _window)
 	{
 		RECT client_rect;
@@ -331,72 +357,7 @@ namespace Win32
 		case WM_SYSKEYDOWN:
 		case WM_SYSKEYUP:
 		{
-			uint32 VK_code = (uint32)_wparameter;
-			bool32 key_released = ((_lparameter & (1 << 30)) != 0);
-			bool32 key_pressed = ((_lparameter & (1 << 31)) == 0);
-			bool32 alt_down = (_lparameter & (1 << 29));
-
-
-			if (key_pressed == key_released)
-			{
-				// NOTE(Craig): Key is repeating in this block
-			}
-			else
-			{
-				if (VK_code == 'W')
-				{
-
-				}
-				else if (VK_code == 'A')
-				{
-
-				}
-				else if (VK_code == 'S')
-				{
-
-				}
-				else if (VK_code == 'D')
-				{
-
-				}
-				else if (VK_code == 'Q')
-				{
-
-				}
-				else if (VK_code == 'E')
-				{
-
-				}
-				else if (VK_code == 'R')
-				{
-
-				}
-				else if (VK_code == 'T')
-				{
-
-				}
-				else if (VK_code == 'F')
-				{
-
-				}
-				else if (VK_code == 'G')
-				{
-
-				}
-				else if (VK_code == VK_ESCAPE)
-				{
-
-				}
-				else if (VK_code == VK_SPACE)
-				{
-
-				}
-			}
-
-			if ((alt_down) && (VK_code == VK_F4))
-			{
-				global_running = false;
-			}
+			Assert(!"Keyboard input came through a non-dispatch method.");
 		} break;
 
 		case WM_PAINT:
@@ -417,6 +378,115 @@ namespace Win32
 		return result;
 	}
 
+	static_internal void ProcessMessages(Abstract::Controller* _controller)
+	{
+		MSG message;
+
+		while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
+		{
+			if (message.message == WM_QUIT)
+			{
+				global_running = false;
+			}
+
+			switch (message.message)
+			{
+			case WM_KEYDOWN:
+			case WM_KEYUP:
+			case WM_SYSKEYDOWN:
+			case WM_SYSKEYUP:
+			{
+				uint32 VK_code = (uint32)message.wParam;
+				bool32 key_released = ((message.lParam & (1 << 30)) != 0);
+				bool32 key_pressed = ((message.lParam & (1 << 31)) == 0);
+				bool32 alt_down = (message.lParam & (1 << 29));
+
+				if (key_pressed == key_released)
+				{
+					// NOTE(Craig): Key is repeating in this block
+				}
+				else
+				{
+					if (VK_code == 'W')
+					{
+						Win32::ProcessKeyboardMessage(&_controller->stick_up, key_pressed);
+					}
+					else if (VK_code == 'A')
+					{
+						Win32::ProcessKeyboardMessage(&_controller->stick_left, key_pressed);
+					}
+					else if (VK_code == 'S')
+					{
+						Win32::ProcessKeyboardMessage(&_controller->stick_down, key_pressed);
+					}
+					else if (VK_code == 'D')
+					{
+						Win32::ProcessKeyboardMessage(&_controller->stick_right, key_pressed);
+					}
+					else if (VK_code == 'Q')
+					{
+						Win32::ProcessKeyboardMessage(&_controller->left_shoulder, key_pressed);
+					}
+					else if (VK_code == 'E')
+					{
+						Win32::ProcessKeyboardMessage(&_controller->right_shoulder, key_pressed);
+					}
+					else if (VK_code == 'R')
+					{
+
+					}
+					else if (VK_code == 'T')
+					{
+
+					}
+					else if (VK_code == 'F')
+					{
+
+					}
+					else if (VK_code == 'G')
+					{
+
+					}
+					else if (VK_code == VK_ESCAPE)
+					{
+						Win32::ProcessKeyboardMessage(&_controller->back, key_pressed);
+					}
+					else if (VK_code == VK_SPACE)
+					{
+						Win32::ProcessKeyboardMessage(&_controller->start, key_pressed);
+					}
+					else if (VK_code == VK_UP)
+					{
+						Win32::ProcessKeyboardMessage(&_controller->action_up, key_pressed);
+					}
+					else if (VK_code == VK_DOWN)
+					{
+						Win32::ProcessKeyboardMessage(&_controller->action_down, key_pressed);
+					}
+					else if (VK_code == VK_LEFT)
+					{
+						Win32::ProcessKeyboardMessage(&_controller->action_left, key_pressed);
+					}
+					else if (VK_code == VK_RIGHT)
+					{
+						Win32::ProcessKeyboardMessage(&_controller->action_right, key_pressed);
+					}
+				}
+
+				if ((alt_down) && (VK_code == VK_F4))
+				{
+					global_running = false;
+				}
+			} break;
+
+			default:
+			{
+				TranslateMessage(&message);
+				DispatchMessage(&message);
+			} break;
+			}
+		}
+	}
 }
 
 int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _command_line, int _command_show)
@@ -475,10 +545,11 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 
 			Abstract::Memory memory = {};
 			memory.permanent_storage_size = Megabytes(64);
-			memory.transient_storage_size = Gigabytes(4);
+			memory.transient_storage_size = Gigabytes(2);
+			//memory.transient_storage_size = Megabytes(963); 
 
 			uint64 total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
-			memory.permanent_storage = VirtualAlloc(base_address, total_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			memory.permanent_storage = VirtualAlloc(base_address, (size_t)total_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 			memory.transient_storage = ((uint8*)memory.permanent_storage + memory.permanent_storage_size);
 
 			if (samples && memory.permanent_storage && memory.transient_storage)
@@ -495,77 +566,84 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 				global_running = true;
 				while (global_running)
 				{
-
-					MSG message;
-					while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
+					Abstract::Controller* old_keyboard_controller = GetController(old_input, 0);
+					Abstract::Controller* new_keyboard_controller = GetController(new_input, 0);
+					*new_keyboard_controller = {};
+					new_keyboard_controller->is_connected = true;
+					for (uint8 button_index = 0; button_index < ArrayCount(new_keyboard_controller->buttons); ++button_index)
 					{
-						if (message.message == WM_QUIT)
-						{
-							global_running = false;
-						}
-
-						TranslateMessage(&message);
-						DispatchMessage(&message);
+						new_keyboard_controller->buttons[button_index].ended_down = old_keyboard_controller->buttons[button_index].ended_down;
 					}
 
-					unsigned int max_controller_count = XUSER_MAX_COUNT;
+					Win32::ProcessMessages(new_keyboard_controller);
+
+					// NOTE(Craig): Keyboard + Number of controllers allowed.
+					uint8 max_controller_count = 1 + XUSER_MAX_COUNT;
 					if (max_controller_count > ArrayCount(new_input->controllers))
 					{
 						max_controller_count = ArrayCount(new_input->controllers);
 					}
 
-					for (DWORD controller_index = 0; controller_index < max_controller_count; ++controller_index)
+					// NOTE(Craig): Index starting at 1, 0 is keyboard.
+					for (uint8 controller_index = 1; controller_index < max_controller_count; ++controller_index)
 					{
-						Abstract::Controller* old_controller = &old_input->controllers[controller_index];
-						Abstract::Controller* new_controller = &new_input->controllers[controller_index];
+						Abstract::Controller* old_controller = GetController(old_input, controller_index);
+						Abstract::Controller* new_controller = GetController(new_input, controller_index);
 
 						XINPUT_STATE controller_state;
 						if (XInputGetState(controller_index, &controller_state) == ERROR_SUCCESS)
 						{
 							// NOTE(Craig): Controller available.
+							new_controller->is_connected = true;
+							
 							XINPUT_GAMEPAD* pad = &controller_state.Gamepad;
 
-							bool32 up = (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
-							bool32 down = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
-							bool32 left = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
-							bool32 right = (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+							new_controller->stick_average_x = Win32::ProcessXInputAnalogStick(pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+							new_controller->stick_average_y = Win32::ProcessXInputAnalogStick(pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+							if ((new_controller->stick_average_x != 0.0f) || (new_controller->stick_average_y != 0.0f))
+							{
+								new_controller->is_analog = true;
+							}
 
-							new_controller->is_analog = true;
-							new_controller->start_x = old_controller->end_x;
-							new_controller->start_y = old_controller->end_y;
+							if (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
+							{
+								new_controller->stick_average_y = 1.0f;
+								new_controller->is_analog = false;
+							}
+							if (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
+							{
+								new_controller->stick_average_y = -1.0f;
+								new_controller->is_analog = false;
+							}
+							if (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
+							{
+								new_controller->stick_average_x = -1.0f;
+								new_controller->is_analog = false;
+							}
+							if (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
+							{
+								new_controller->stick_average_x = 1.0f;
+								new_controller->is_analog = false;
+							}
 
-							real32 x;
-							if (pad->sThumbLX < 0)
-							{
-								x = (real32)pad->sThumbLX / 32768.0f;
-							}
-							else
-							{
-								x = (real32)pad->sThumbLX / 32767.0f;
-							}
-							new_controller->min_x = new_controller->max_x = new_controller->end_x = x;
-							real32 y;
-							if (pad->sThumbLX < 0)
-							{
-								y = (real32)pad->sThumbLY / 32768.0f;
-							}
-							else
-							{
-								y = (real32)pad->sThumbLY / 32767.0f;
-							}
-							new_controller->min_y = new_controller->max_y = new_controller->end_y = y;
-
+							real32 threshold = 0.5f;
+							Win32::ProcessXInputDigitalButton((new_controller->stick_average_x < -threshold) ? 1 : 0, 1, &old_controller->stick_left, &new_controller->stick_left);
+							Win32::ProcessXInputDigitalButton((new_controller->stick_average_x > threshold) ? 1 : 0, 1, &old_controller->stick_right, &new_controller->stick_right);
+							Win32::ProcessXInputDigitalButton((new_controller->stick_average_y < -threshold) ? 1 : 0, 1, &old_controller->stick_down, &new_controller->stick_down);
+							Win32::ProcessXInputDigitalButton((new_controller->stick_average_y > threshold) ? 1 : 0, 1, &old_controller->stick_up, &new_controller->stick_up);
 							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &old_controller->left_shoulder, &new_controller->left_shoulder);
 							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &old_controller->right_shoulder, &new_controller->right_shoulder);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_A, &old_controller->down, &new_controller->down);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_B, &old_controller->right, &new_controller->right);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_X, &old_controller->left, &new_controller->left);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_Y, &old_controller->up, &new_controller->up);
-
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_A, &old_controller->action_down, &new_controller->action_down);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_B, &old_controller->action_right, &new_controller->action_right);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_X, &old_controller->action_left, &new_controller->action_left);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_Y, &old_controller->action_up, &new_controller->action_up);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_START, &old_controller->start, &new_controller->start);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_BACK, &old_controller->back, &new_controller->back);
 						}
 						else
 						{
 							// NOTE(Craig): Controller not available.
+							new_controller->is_connected = false;
 						}
 					}
 
