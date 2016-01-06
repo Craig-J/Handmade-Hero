@@ -26,9 +26,7 @@ namespace
 {
 
 	// TODO(Craig): Change from global.
-	static_global bool32 global_running;
-	static_global Win32::BitmapBuffer global_back_buffer;
-	static_global LPDIRECTSOUNDBUFFER global_secondary_buffer;
+	static_global Win32::Application application;
 
 	// NOTE(Craig): XInputGetState macro/typedef/stub.
 	//		Description
@@ -119,7 +117,7 @@ namespace Win32
 				buffer_description.dwBufferBytes = _buffer_size;
 				buffer_description.lpwfxFormat = &wave_format;
 
-				if (SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_description, &global_secondary_buffer, 0)))
+				if (SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_description, &application.main_audio_buffer, 0)))
 				{
 					// TODO(Craig): Log buffer creation success.
 				}
@@ -141,10 +139,10 @@ namespace Win32
 		DWORD region_1_size;
 		VOID* region_2;
 		DWORD region_2_size;
-		if (SUCCEEDED(global_secondary_buffer->Lock(0, _buffer->secondary_buffer_size,
-													&region_1, &region_1_size,
-													&region_2, &region_2_size,
-													0)))
+		if (SUCCEEDED(application.main_audio_buffer->Lock(0, _buffer->buffer_size,
+														  &region_1, &region_1_size,
+														  &region_2, &region_2_size,
+														  0)))
 		{
 			uint8* sample_out = (uint8*)region_1;
 			for (DWORD byte_index = 0; byte_index < region_1_size; ++byte_index)
@@ -158,7 +156,7 @@ namespace Win32
 				*sample_out++ = 0;
 			}
 
-			global_secondary_buffer->Unlock(region_1, region_1_size, region_2, region_2_size);
+			application.main_audio_buffer->Unlock(region_1, region_1_size, region_2, region_2_size);
 		}
 	}
 
@@ -168,10 +166,10 @@ namespace Win32
 		DWORD region_1_size;
 		VOID* region_2;
 		DWORD region_2_size;
-		if (SUCCEEDED(global_secondary_buffer->Lock(_byte_to_lock, _bytes_to_write,
-													&region_1, &region_1_size,
-													&region_2, &region_2_size,
-													0)))
+		if (SUCCEEDED(application.main_audio_buffer->Lock(_byte_to_lock, _bytes_to_write,
+														  &region_1, &region_1_size,
+														  &region_2, &region_2_size,
+														  0)))
 		{
 			int16* sample_in = _buffer->samples;
 
@@ -193,7 +191,7 @@ namespace Win32
 				++_audio_info->running_sample_index;
 			}
 
-			global_secondary_buffer->Unlock(region_1, region_1_size, region_2, region_2_size);
+			application.main_audio_buffer->Unlock(region_1, region_1_size, region_2, region_2_size);
 		}
 	}
 
@@ -309,9 +307,9 @@ namespace Win32
 					  0, 0, _client_width, _client_height,
 					  0, 0, _client_width, _client_height,		// No scaling
 //					  0, 0, _buffer->width, _buffer->height,	// Scale buffer to client size
-					  _buffer->memory,
-					  &_buffer->info,
-					  DIB_RGB_COLORS, SRCCOPY);
+_buffer->memory,
+&_buffer->info,
+DIB_RGB_COLORS, SRCCOPY);
 	}
 
 	// WINDOW
@@ -338,13 +336,13 @@ namespace Win32
 		case WM_DESTROY:
 		{
 			// TODO(Craig): Handle as error - recreate window?
-			global_running = false;
+			application.running = false;
 		} break;
 
 		case WM_CLOSE:
 		{
 			// TODO(Craig): Handle with message to user?
-			global_running = false;
+			application.running = false;
 		} break;
 
 		case WM_ACTIVATEAPP:
@@ -365,7 +363,7 @@ namespace Win32
 			PAINTSTRUCT paint;
 			HDC device_context = BeginPaint(_window, &paint);
 			ClientDimensions client = GetClientDimensions(_window);
-			DisplayBitmapToDevice(device_context, &global_back_buffer, client.width, client.height);
+			DisplayBitmapToDevice(device_context, &application.main_bitmap_buffer, client.width, client.height);
 			EndPaint(_window, &paint);
 		} break;
 
@@ -386,7 +384,7 @@ namespace Win32
 		{
 			if (message.message == WM_QUIT)
 			{
-				global_running = false;
+				application.running = false;
 			}
 
 			switch (message.message)
@@ -475,7 +473,7 @@ namespace Win32
 
 				if ((alt_down) && (VK_code == VK_F4))
 				{
-					global_running = false;
+					application.running = false;
 				}
 			} break;
 
@@ -487,16 +485,36 @@ namespace Win32
 			}
 		}
 	}
+
+	// SYSTEM
+
+	static_internal inline LARGE_INTEGER GetWallClock()
+	{
+		LARGE_INTEGER counter;
+		QueryPerformanceCounter(&counter);
+		return counter;
+	}
+
+	uint64 cycles_elapsed = cycle_count_end - previous_cycle_count;
+	int64 counter_elapsed = counter_end.QuadPart - previous_counter.QuadPart;
+
+	static_internal inline real32 GetTimeDifference(LARGE_INTEGER _start, LARGE_INTEGER _end)
+	{
+		return((real32)(_end.QuadPart - _start.QuadPart) / (real32)application.performance_counter_frequency);
+	}
+
+	
 }
 
 int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _command_line, int _command_show)
 {
-	Win32::ResizeBitmapBuffer(&global_back_buffer, 1920, 1080);
+	application = {};
+	Win32::ResizeBitmapBuffer(&application.main_bitmap_buffer, 1920, 1080);
 	Win32::LoadXInput();
 
 	LARGE_INTEGER temp_performance_counter_frequency;
 	QueryPerformanceFrequency(&temp_performance_counter_frequency);
-	int64 performance_counter_frequency = temp_performance_counter_frequency.QuadPart;
+	application.performance_counter_frequency = temp_performance_counter_frequency.QuadPart;
 
 	WNDCLASS window_class = {};
 	window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -504,6 +522,10 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 	window_class.hInstance = _instance;
 	// window_class.hIcon;
 	window_class.lpszClassName = "HandmadeHeroWindowClass";
+
+	int monitor_refresh_rate = 60;
+	int game_update_rate = monitor_refresh_rate / 2;
+	real32 target_frame_time = 1.0f / game_update_rate;
 
 	if (RegisterClass(&window_class))
 	{
@@ -528,14 +550,14 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 			audio_info.samples_per_second = 48000;
 			audio_info.running_sample_index = 0;
 			audio_info.bytes_per_sample = sizeof(int16) * 2;
-			audio_info.secondary_buffer_size = audio_info.samples_per_second * audio_info.bytes_per_sample;
+			audio_info.buffer_size = audio_info.samples_per_second * audio_info.bytes_per_sample;
 			audio_info.latency_sample_count = audio_info.samples_per_second / 15;
 
-			Win32::InitializeDirectSound(window, audio_info.samples_per_second, audio_info.secondary_buffer_size);
+			Win32::InitializeDirectSound(window, audio_info.samples_per_second, audio_info.buffer_size);
 			Win32::ClearAudioBuffer(&audio_info);
-			global_secondary_buffer->Play(0, 0, DSBPLAY_LOOPING);
+			application.main_audio_buffer->Play(0, 0, DSBPLAY_LOOPING);
 
-			int16* samples = (int16*)VirtualAlloc(0, audio_info.secondary_buffer_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			int16* samples = (int16*)VirtualAlloc(0, audio_info.buffer_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 #if (INTERNAL_BUILD == true)
 			LPVOID base_address = (LPVOID)Terabytes(2);
@@ -563,8 +585,8 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 
 				uint64 previous_cycle_count = __rdtsc();
 
-				global_running = true;
-				while (global_running)
+				application.running = true;
+				while (application.running)
 				{
 					Abstract::Controller* old_keyboard_controller = GetController(old_input, 0);
 					Abstract::Controller* new_keyboard_controller = GetController(new_input, 0);
@@ -653,14 +675,14 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					DWORD play_cursor;
 					DWORD write_cursor;
 					bool32 sound_is_valid = false;
-					if (SUCCEEDED(global_secondary_buffer->GetCurrentPosition(&play_cursor, &write_cursor)))
+					if (SUCCEEDED(application.main_audio_buffer->GetCurrentPosition(&play_cursor, &write_cursor)))
 					{
-						byte_to_lock = (audio_info.running_sample_index * audio_info.bytes_per_sample) % audio_info.secondary_buffer_size;
-						target_cursor = (play_cursor + audio_info.latency_sample_count * audio_info.bytes_per_sample) % audio_info.secondary_buffer_size;
+						byte_to_lock = (audio_info.running_sample_index * audio_info.bytes_per_sample) % audio_info.buffer_size;
+						target_cursor = (play_cursor + audio_info.latency_sample_count * audio_info.bytes_per_sample) % audio_info.buffer_size;
 
 						if (byte_to_lock > target_cursor)
 						{
-							bytes_to_write = audio_info.secondary_buffer_size - byte_to_lock;
+							bytes_to_write = audio_info.buffer_size - byte_to_lock;
 							bytes_to_write += target_cursor;
 						}
 						else
@@ -677,10 +699,10 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					audio_buffer.samples = samples;
 
 					Abstract::BitmapBuffer bitmap_buffer = {};
-					bitmap_buffer.memory = global_back_buffer.memory;
-					bitmap_buffer.width = global_back_buffer.width;
-					bitmap_buffer.height = global_back_buffer.height;
-					bitmap_buffer.pitch = global_back_buffer.pitch;
+					bitmap_buffer.memory = application.main_bitmap_buffer.memory;
+					bitmap_buffer.width = application.main_bitmap_buffer.width;
+					bitmap_buffer.height = application.main_bitmap_buffer.height;
+					bitmap_buffer.pitch = application.main_bitmap_buffer.pitch;
 
 					UpdateAndRender(&memory, new_input, &bitmap_buffer, &audio_buffer);
 
@@ -690,15 +712,18 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					}
 
 					Win32::ClientDimensions client = Win32::GetClientDimensions(window);
-					DisplayBitmapToDevice(device_context, &global_back_buffer, client.width, client.height);
+					DisplayBitmapToDevice(device_context, &application.main_bitmap_buffer, client.width, client.height);
 
 					uint64 cycle_count_end = __rdtsc();
 
-					LARGE_INTEGER counter_end;
-					QueryPerformanceCounter(&counter_end);
+					
+					real32 time_remainder = target_frame_time - time_elapsed_for_frame;
+					while (time_remainder > 0.0f)
+					{
+						QueryPerformanceCounter(&counter_end);
+						time_remainder = target_frame_time - ((real32)(counter_end.QuadPart - previous_counter.QuadPart) / (real32)performance_counter_frequency);
+					}
 
-					uint64 cycles_elapsed = cycle_count_end - previous_cycle_count;
-					int64 counter_elapsed = counter_end.QuadPart - previous_counter.QuadPart;
 					real32 ms_per_frame = (1000.0f * (real32)counter_elapsed) / (real32)performance_counter_frequency;
 					real32 frames_per_second = (real32)performance_counter_frequency / (real32)counter_elapsed;
 					real32 mega_cycles_per_frame = (real32)cycles_elapsed / (1000.0f * 1000.0f);
@@ -706,6 +731,8 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 					char buffer[256];
 					sprintf_s(buffer, "Frame Time: %.02fms  FPS: %.02f  Megacycles: %.02f\n", ms_per_frame, frames_per_second, mega_cycles_per_frame);
 					OutputDebugString(buffer);
+
+					QueryPerformanceCounter(&counter_end);
 
 					previous_cycle_count = cycle_count_end;
 					previous_counter = counter_end;

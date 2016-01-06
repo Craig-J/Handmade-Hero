@@ -15,7 +15,7 @@ namespace Win32
 		int samples_per_second;
 		uint32 running_sample_index;
 		int bytes_per_sample;
-		int secondary_buffer_size;
+		int buffer_size;
 		int latency_sample_count;
 	};
 
@@ -32,6 +32,14 @@ namespace Win32
 	{
 		int width;
 		int height;
+	};
+
+	struct Application
+	{
+		bool32 running;
+		BitmapBuffer main_bitmap_buffer;
+		LPDIRECTSOUNDBUFFER main_audio_buffer;
+		int64 performance_counter_frequency;
 	};
 }
 
