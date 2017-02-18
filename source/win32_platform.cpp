@@ -1,69 +1,71 @@
-#include "win32_platform.h"
-#include <xinput.h>
-#include <dsound.h>
-#include <cstdio>
-
 /*
-	TODO(Craig): Platform TODO List
+TODO(Craig): Platform TODO List
 
-	- Saved game locations
-	- Handle to own executable
-	- Asset loading path
-	- Threading
-	- Raw input
-	- Sleep/timebeginperiod
-	- Clipcursor (multimonitor support)
-	- Fullscreen support
-	- WM_SETCURSOR
-	- QueryCancelAutoplay
-	- WM_ACTIVATEAPP
-	- Blit speed improvement
-	- Hardware acceleration (OpenGL/D3D)
-	- GetKeyboardLayout
+- Saved game locations
+- Handle to own executable
+- Asset loading path
+- Threading
+- Raw input
+- Sleep/timebeginperiod
+- Clipcursor (multimonitor support)
+- Fullscreen support
+- WM_SETCURSOR
+- QueryCancelAutoplay
+- WM_ACTIVATEAPP
+- Blit speed improvement
+- Hardware acceleration (OpenGL/D3D)
+- GetKeyboardLayout
 */
 
-namespace
-{
+#include "handmade.h"
+#include "handmade.cpp"
 
-	// TODO(Craig): Change from global.
-	static_global Win32::Application application;
+#include <Windows.h>
+#include <stdio.h>
+#include <malloc.h>
+#include <dsound.h>
+#include <xinput.h>
 
-	// NOTE(Craig): XInputGetState macro/typedef/stub.
-	//		Description
-	//		First define a macro to create functions with correct signature.
-	//		Second create a type with this function signature using the macro.
-	//		Third make a default stub function using the macro.
-	//		Fourth create a function pointer that points to the stub function.
-	//		Fifth define the functions normal name to reference the function pointer instead.
+#include "win32_platform.h"
+
+// TODO(Craig): Change from global.
+static_global Win32::Application _application;
+static_global int64 _qpcFrequency;
+
+// NOTE(Craig): XInputGetState macro/typedef/stub.
+//		Description
+//		First define a macro to create functions with correct signature.
+//		Second create a type with this function signature using the macro.
+//		Third make a default stub function using the macro.
+//		Fourth create a function pointer that points to the stub function.
+//		Fifth define the functions normal name to reference the function pointer instead.
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
-	typedef X_INPUT_GET_STATE(XInputGetState_Type);
-	X_INPUT_GET_STATE(XInputGetState_Stub)
-	{
-		return ERROR_DEVICE_NOT_CONNECTED;
-	}
-	static_global XInputGetState_Type* XInputGetState_FuncPtr = XInputGetState_Stub;
+typedef X_INPUT_GET_STATE(XInputGetState_Type);
+X_INPUT_GET_STATE(XInputGetState_Stub)
+{
+	return ERROR_DEVICE_NOT_CONNECTED;
+}
+static_global XInputGetState_Type* XInputGetState_FuncPtr = XInputGetState_Stub;
 #define XInputGetState XInputGetState_FuncPtr
 
-	// NOTE(Craig): XInputSetState macro/typedef/stub.
+// NOTE(Craig): XInputSetState macro/typedef/stub.
 #define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
-	typedef X_INPUT_SET_STATE(XInputSetState_Type);
-	X_INPUT_SET_STATE(XInputSetState_Stub)
-	{
-		return ERROR_DEVICE_NOT_CONNECTED;
-	}
-	static_global XInputSetState_Type* XInputSetState_FuncPtr = XInputSetState_Stub;
+typedef X_INPUT_SET_STATE(XInputSetState_Type);
+X_INPUT_SET_STATE(XInputSetState_Stub)
+{
+	return ERROR_DEVICE_NOT_CONNECTED;
+}
+static_global XInputSetState_Type* XInputSetState_FuncPtr = XInputSetState_Stub;
 #define XInputSetState XInputSetState_FuncPtr
 
-	// NOTE(Craig): DirectSoundCreate macro/typedef.
+// NOTE(Craig): DirectSoundCreate macro/typedef.
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
-	typedef DIRECT_SOUND_CREATE(DirectSoundCreate_Type);
-
-}
+typedef DIRECT_SOUND_CREATE(DirectSoundCreate_Type);
 
 namespace Win32
 {
 	// AUDIO
-	static_internal void InitializeDirectSound(HWND _window, int32 _samples_per_second, int32 _buffer_size)
+	static_internal void InitializeDirectSound(HWND window, int32 samplesPerSecond, int32 bufferSize)
 	{
 		HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
 
@@ -71,29 +73,29 @@ namespace Win32
 		{
 			DirectSoundCreate_Type* DirectSoundCreate = (DirectSoundCreate_Type*)GetProcAddress(DSoundLibrary, "DirectSoundCreate");
 
-			LPDIRECTSOUND direct_sound;
-			if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &direct_sound, 0)))
+			LPDIRECTSOUND directSound;
+			if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &directSound, 0)))
 			{
-				WAVEFORMATEX wave_format = {};
-				wave_format.wFormatTag = WAVE_FORMAT_PCM;
-				wave_format.nChannels = 2;
-				wave_format.nSamplesPerSec = _samples_per_second;
-				wave_format.wBitsPerSample = 16;
-				wave_format.nBlockAlign = (wave_format.nChannels * wave_format.wBitsPerSample) / 8;
-				wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
-				wave_format.cbSize = 0;
+				WAVEFORMATEX waveFormat = {};
+				waveFormat.wFormatTag = WAVE_FORMAT_PCM;
+				waveFormat.nChannels = 2;
+				waveFormat.nSamplesPerSec = samplesPerSecond;
+				waveFormat.wBitsPerSample = 16;
+				waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
+				waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+				waveFormat.cbSize = 0;
 
-				if (SUCCEEDED(direct_sound->SetCooperativeLevel(_window, DSSCL_PRIORITY)))
+				if (SUCCEEDED(directSound->SetCooperativeLevel(window, DSSCL_PRIORITY)))
 				{
-					DSBUFFERDESC buffer_description = {};
-					buffer_description.dwSize = sizeof(buffer_description);
-					buffer_description.dwFlags = DSBCAPS_PRIMARYBUFFER;
+					DSBUFFERDESC bufferDescription = {};
+					bufferDescription.dwSize = sizeof(bufferDescription);
+					bufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
 
 					// NOTE(Craig): Create a primary buffer.
-					LPDIRECTSOUNDBUFFER primary_buffer;
-					if (SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_description, &primary_buffer, 0)))
+					LPDIRECTSOUNDBUFFER primaryBuffer;
+					if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &primaryBuffer, 0)))
 					{
-						if (SUCCEEDED(primary_buffer->SetFormat(&wave_format)))
+						if (SUCCEEDED(primaryBuffer->SetFormat(&waveFormat)))
 						{
 
 						}
@@ -112,12 +114,12 @@ namespace Win32
 					// TODO(Craig): Log SetCooperativeLevel function failure.
 				}
 
-				DSBUFFERDESC buffer_description = {};
-				buffer_description.dwSize = sizeof(buffer_description);
-				buffer_description.dwBufferBytes = _buffer_size;
-				buffer_description.lpwfxFormat = &wave_format;
+				DSBUFFERDESC bufferDescription = {};
+				bufferDescription.dwSize = sizeof(bufferDescription);
+				bufferDescription.dwBufferBytes = bufferSize;
+				bufferDescription.lpwfxFormat = &waveFormat;
 
-				if (SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_description, &application.main_audio_buffer, 0)))
+				if (SUCCEEDED(directSound->CreateSoundBuffer(&bufferDescription, &_application.MainAudioBuffer, 0)))
 				{
 					// TODO(Craig): Log buffer creation success.
 				}
@@ -133,65 +135,65 @@ namespace Win32
 		}
 	}
 
-	static_internal void ClearAudioBuffer(AudioInfo* _buffer)
+	static_internal void ClearAudioBuffer(AudioInfo* buffer)
 	{
-		VOID* region_1;
-		DWORD region_1_size;
-		VOID* region_2;
-		DWORD region_2_size;
-		if (SUCCEEDED(application.main_audio_buffer->Lock(0, _buffer->buffer_size,
-														  &region_1, &region_1_size,
-														  &region_2, &region_2_size,
-														  0)))
+		VOID* region1;
+		DWORD region1Size;
+		VOID* region2;
+		DWORD region2Size;
+		if (SUCCEEDED(_application.MainAudioBuffer->Lock(0, buffer->BufferSize,
+			&region1, &region1Size,
+			&region2, &region2Size,
+			0)))
 		{
-			uint8* sample_out = (uint8*)region_1;
-			for (DWORD byte_index = 0; byte_index < region_1_size; ++byte_index)
+			uint8* sampleOut = (uint8*)region1;
+			for (DWORD byteIndex = 0; byteIndex < region1Size; ++byteIndex)
 			{
-				*sample_out++ = 0;
+				*sampleOut++ = 0;
 			}
 
-			sample_out = (uint8*)region_2;
-			for (DWORD byte_index = 0; byte_index < region_2_size; ++byte_index)
+			sampleOut = (uint8*)region2;
+			for (DWORD byteIndex = 0; byteIndex < region2Size; ++byteIndex)
 			{
-				*sample_out++ = 0;
+				*sampleOut++ = 0;
 			}
 
-			application.main_audio_buffer->Unlock(region_1, region_1_size, region_2, region_2_size);
+			_application.MainAudioBuffer->Unlock(region1, region1Size, region2, region2Size);
 		}
 	}
 
-	static_internal void FillAudioBuffer(AudioInfo* _audio_info, DWORD _byte_to_lock, DWORD _bytes_to_write, Abstract::AudioBuffer* _buffer)
+	static_internal void FillAudioBuffer(AudioInfo* audioInfo, DWORD byteToLock, DWORD bytesToWrite, AudioBuffer* buffer)
 	{
-		VOID* region_1;
-		DWORD region_1_size;
-		VOID* region_2;
-		DWORD region_2_size;
-		if (SUCCEEDED(application.main_audio_buffer->Lock(_byte_to_lock, _bytes_to_write,
-														  &region_1, &region_1_size,
-														  &region_2, &region_2_size,
-														  0)))
+		VOID* region1;
+		DWORD region1Size;
+		VOID* region2;
+		DWORD region2Size;
+		if (SUCCEEDED(_application.MainAudioBuffer->Lock(byteToLock, bytesToWrite,
+			&region1, &region1Size,
+			&region2, &region2Size,
+			0)))
 		{
-			int16* sample_in = _buffer->samples;
+			int16* sampleIn = buffer->Samples;
 
-			DWORD region_1_sample_count = region_1_size / _audio_info->bytes_per_sample;
-			int16* sample_out = (int16*)region_1;
-			for (DWORD sample_index = 0; sample_index < region_1_sample_count; ++sample_index)
+			DWORD region1SampleCount = region1Size / audioInfo->BytesPerSample;
+			int16* sampleOut = (int16*)region1;
+			for (DWORD sampleIndex = 0; sampleIndex < region1SampleCount; ++sampleIndex)
 			{
-				*sample_out++ = *sample_in++;
-				*sample_out++ = *sample_in++;
-				++_audio_info->running_sample_index;
+				*sampleOut++ = *sampleIn++;
+				*sampleOut++ = *sampleIn++;
+				++audioInfo->RunningSampleIndex;
 			}
 
-			DWORD region_2_sample_count = region_2_size / _audio_info->bytes_per_sample;
-			sample_out = (int16*)region_2;
-			for (DWORD sample_index = 0; sample_index < region_2_sample_count; ++sample_index)
+			DWORD region2SampleCount = region2Size / audioInfo->BytesPerSample;
+			sampleOut = (int16*)region2;
+			for (DWORD sampleIndex = 0; sampleIndex < region2SampleCount; ++sampleIndex)
 			{
-				*sample_out++ = *sample_in++;
-				*sample_out++ = *sample_in++;
-				++_audio_info->running_sample_index;
+				*sampleOut++ = *sampleIn++;
+				*sampleOut++ = *sampleIn++;
+				++audioInfo->RunningSampleIndex;
 			}
 
-			application.main_audio_buffer->Unlock(region_1, region_1_size, region_2, region_2_size);
+			_application.MainAudioBuffer->Unlock(region1, region1Size, region2, region2Size);
 		}
 	}
 
@@ -223,160 +225,161 @@ namespace Win32
 		}
 	}
 
-	static_internal void ProcessXInputDigitalButton(WORD _XInput_button_states, DWORD _button_bit, Abstract::ButtonState* _old, Abstract::ButtonState* _new)
+	static_internal void ProcessXInputDigitalButton(WORD XInputButtonStates, DWORD buttonBit, ButtonState* oldState, ButtonState* newState)
 	{
-		_new->ended_down = ((_XInput_button_states & _button_bit) == _button_bit);
-		_new->transition_count = (_old->ended_down != _new->ended_down) ? 1 : 0;
+		newState->EndedDown = ((XInputButtonStates & buttonBit) == buttonBit);
+		newState->TransitionCount = (oldState->EndedDown != newState->EndedDown) ? 1 : 0;
 	}
 
-	static_internal real32 ProcessXInputAnalogStick(SHORT _value, SHORT _dead_zone_threshold)
+	static_internal real32 ProcessXInputAnalogStick(SHORT value, SHORT deadZoneThreshold)
 	{
 		real32 result = 0;
 
-		if (_value < -_dead_zone_threshold)
+		if (value < -deadZoneThreshold)
 		{
-			result = (real32)((_value + _dead_zone_threshold) / (32768.0f - _dead_zone_threshold));
+			result = (real32)((value + deadZoneThreshold) / (32768.0f - deadZoneThreshold));
 		}
-		else if (_value > _dead_zone_threshold)
+		else if (value > deadZoneThreshold)
 		{
-			result = (real32)((_value - _dead_zone_threshold) / (32767.0f - _dead_zone_threshold));
+			result = (real32)((value - deadZoneThreshold) / (32767.0f - deadZoneThreshold));
 		}
 
 		return result;
 	}
 
-	static_internal void ProcessKeyboardMessage(Abstract::ButtonState* _new, bool32 _is_down)
+	static_internal void ProcessKeyboardMessage(ButtonState* newState, bool32 isDown)
 	{
-		Assert(_new->ended_down != _is_down);
-		_new->ended_down = _is_down;
-		++_new->transition_count;
+		Assert(newState->EndedDown != isDown);
+
+		newState->EndedDown = isDown;
+		++newState->TransitionCount;
 	}
 
 	// GRAPHICS
-	static_internal void ClearBitmapBuffer(BitmapBuffer _buffer, Colour::RGB _colour = Colour::Black)
+	static_internal void ClearBitmapBuffer(BitmapBuffer buffer, Colour::RGB colour = Colour::Black)
 	{
-		uint8* row = (uint8*)_buffer.memory;
-		for (int y = 0; y < _buffer.height; ++y)
+		uint8* row = (uint8*)buffer.Memory;
+		for (int y = 0; y < buffer.Height; ++y)
 		{
 			uint32* pixel = (uint32*)row;
-			for (int x = 0; x < _buffer.width; ++x)
+			for (int x = 0; x < buffer.Width; ++x)
 			{
-				*pixel++ = ((_colour.red << 16) | (_colour.green << 8) | _colour.blue);
+				*pixel++ = ((colour.Red << 16) | (colour.Green << 8) | colour.Blue);
 			}
 
-			row += _buffer.pitch;
+			row += buffer.Pitch;
 		}
 	}
 
-	static_internal void ResizeBitmapBuffer(BitmapBuffer* _buffer, int _width, int _height)
+	static_internal void ResizeBitmapBuffer(BitmapBuffer* buffer, int width, int height)
 	{
 		// TODO(Craig): Bulletproof this.
 		// Don't pre-free, free after (free first if it fails).
 
-		if (_buffer->memory)
+		if (buffer->Memory)
 		{
-			VirtualFree(_buffer->memory, 0, MEM_RELEASE);
+			VirtualFree(buffer->Memory, 0, MEM_RELEASE);
 		}
 
-		_buffer->width = _width;
-		_buffer->height = _height;
-		int bytes_per_pixel = 4;
+		buffer->Width = width;
+		buffer->Height = height;
+		int bytesPerPixel = 4;
 
 		// NOTE(Craig): When biHeight is negative, this is the clue to windows
 		// to treat the bitmap as top-down, not bottom-up, meaning that the buffer
 		// starts at the top left pixel not the bottom right.
-		_buffer->info.bmiHeader.biSize = sizeof(_buffer->info.bmiHeader);
-		_buffer->info.bmiHeader.biWidth = _width;
-		_buffer->info.bmiHeader.biHeight = -_height;
-		_buffer->info.bmiHeader.biPlanes = 1;
-		_buffer->info.bmiHeader.biBitCount = (WORD)(8 * bytes_per_pixel);
-		_buffer->info.bmiHeader.biCompression = BI_RGB;
+		buffer->Info.bmiHeader.biSize = sizeof(buffer->Info.bmiHeader);
+		buffer->Info.bmiHeader.biWidth = width;
+		buffer->Info.bmiHeader.biHeight = -height;
+		buffer->Info.bmiHeader.biPlanes = 1;
+		buffer->Info.bmiHeader.biBitCount = (WORD)(8 * bytesPerPixel);
+		buffer->Info.bmiHeader.biCompression = BI_RGB;
 
-		int bitmap_memory_size = (_width * _height) * bytes_per_pixel;
-		_buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		int bitmapMemorySize = (width * height) * bytesPerPixel;
+		buffer->Memory = VirtualAlloc(0, bitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-		_buffer->pitch = _buffer->width * bytes_per_pixel;
+		buffer->Pitch = buffer->Width * bytesPerPixel;
 
 		// Clears buffer to black
-		ClearBitmapBuffer(*_buffer);
+		ClearBitmapBuffer(*buffer);
 	}
 
-	static_internal void DisplayBitmapToDevice(HDC _device_context, BitmapBuffer* _buffer, int _client_width, int _client_height)
+	static_internal void DisplayBitmapToDevice(HDC deviceContext, BitmapBuffer* buffer, int clientWidth, int clientHeight)
 	{
-		StretchDIBits(_device_context,
-					  0, 0, _client_width, _client_height,
-					  0, 0, _client_width, _client_height,		// No scaling
-//					  0, 0, _buffer->width, _buffer->height,	// Scale buffer to client size
-_buffer->memory,
-&_buffer->info,
-DIB_RGB_COLORS, SRCCOPY);
+		StretchDIBits(deviceContext,
+					  0, 0, clientWidth, clientHeight,
+					  0, 0, clientWidth, clientHeight,		// No scaling
+//					  0, 0, buffer->width, buffer->height,	// Scale buffer to client size
+					  buffer->Memory,
+					  &buffer->Info,
+					  DIB_RGB_COLORS, SRCCOPY);
 	}
 
 	// WINDOW
-	static_internal ClientDimensions GetClientDimensions(HWND _window)
+	static_internal ClientDimensions GetClientDimensions(HWND window)
 	{
-		RECT client_rect;
-		GetClientRect(_window, &client_rect);
+		RECT clientRect;
+		GetClientRect(window, &clientRect);
 		ClientDimensions result;
-		result.width = client_rect.right - client_rect.left;
-		result.height = client_rect.bottom - client_rect.top;
+		result.Width = clientRect.right - clientRect.left;
+		result.Height = clientRect.bottom - clientRect.top;
 		return result;
 	}
 
-	static_internal LRESULT CALLBACK MainWindowCallback(HWND _window, UINT _message, WPARAM _wparameter, LPARAM _lparameter)
+	static_internal LRESULT CALLBACK MainWindowCallback(HWND window, UINT message, WPARAM wParameter, LPARAM lParameter)
 	{
 		LRESULT result = 0;
 
-		switch (_message)
+		switch (message)
 		{
-		case WM_SIZE:
-		{
-		} break;
+			case WM_SIZE:
+			{
+			} break;
 
-		case WM_DESTROY:
-		{
-			// TODO(Craig): Handle as error - recreate window?
-			application.running = false;
-		} break;
+			case WM_DESTROY:
+			{
+				// TODO(Craig): Handle as error - recreate window?
+				_application.IsRunning = false;
+			} break;
 
-		case WM_CLOSE:
-		{
-			// TODO(Craig): Handle with message to user?
-			application.running = false;
-		} break;
+			case WM_CLOSE:
+			{
+				// TODO(Craig): Handle with message to user?
+				_application.IsRunning = false;
+			} break;
 
-		case WM_ACTIVATEAPP:
-		{
-			OutputDebugString("WM_ACTIVATEAPP\n");
-		} break;
+			case WM_ACTIVATEAPP:
+			{
+				OutputDebugString("WM_ACTIVATEAPP\n");
+			} break;
 
-		case WM_KEYDOWN:
-		case WM_KEYUP:
-		case WM_SYSKEYDOWN:
-		case WM_SYSKEYUP:
-		{
-			Assert(!"Keyboard input came through a non-dispatch method.");
-		} break;
+			case WM_KEYDOWN:
+			case WM_KEYUP:
+			case WM_SYSKEYDOWN:
+			case WM_SYSKEYUP:
+			{
+				Assert(!"Keyboard input came through a non-dispatch method.");
+			} break;
 
-		case WM_PAINT:
-		{
-			PAINTSTRUCT paint;
-			HDC device_context = BeginPaint(_window, &paint);
-			ClientDimensions client = GetClientDimensions(_window);
-			DisplayBitmapToDevice(device_context, &application.main_bitmap_buffer, client.width, client.height);
-			EndPaint(_window, &paint);
-		} break;
+			case WM_PAINT:
+			{
+				PAINTSTRUCT paint;
+				HDC deviceContext = BeginPaint(window, &paint);
+				ClientDimensions client = GetClientDimensions(window);
+				DisplayBitmapToDevice(deviceContext, &_application.MainBitmapBuffer, client.Width, client.Height);
+				EndPaint(window, &paint);
+			} break;
 
-		default:
-		{
-			result = DefWindowProc(_window, _message, _wparameter, _lparameter);
-		} break;
+			default:
+			{
+				result = DefWindowProc(window, message, wParameter, lParameter);
+			} break;
 		}
 
 		return result;
 	}
 
-	static_internal void ProcessMessages(Abstract::Controller* _controller)
+	static_internal void ProcessMessages(Controller* controller)
 	{
 		MSG message;
 
@@ -384,104 +387,104 @@ DIB_RGB_COLORS, SRCCOPY);
 		{
 			if (message.message == WM_QUIT)
 			{
-				application.running = false;
+				_application.IsRunning = false;
 			}
 
 			switch (message.message)
 			{
-			case WM_KEYDOWN:
-			case WM_KEYUP:
-			case WM_SYSKEYDOWN:
-			case WM_SYSKEYUP:
-			{
-				uint32 VK_code = (uint32)message.wParam;
-				bool32 key_released = ((message.lParam & (1 << 30)) != 0);
-				bool32 key_pressed = ((message.lParam & (1 << 31)) == 0);
-				bool32 alt_down = (message.lParam & (1 << 29));
-
-				if (key_pressed == key_released)
+				case WM_KEYDOWN:
+				case WM_KEYUP:
+				case WM_SYSKEYDOWN:
+				case WM_SYSKEYUP:
 				{
-					// NOTE(Craig): Key is repeating in this block
-				}
-				else
+					uint32 VKCode = (uint32)message.wParam;
+					bool32 keyReleased = ((message.lParam & (1 << 30)) != 0);
+					bool32 keyPressed = ((message.lParam & (1 << 31)) == 0);
+					bool32 altDown = (message.lParam & (1 << 29));
+
+					if (keyPressed == keyReleased)
+					{
+						// NOTE(Craig): Key is repeating in this block
+					}
+					else
+					{
+						if (VKCode == 'W')
+						{
+							Win32::ProcessKeyboardMessage(&controller->StickUp, keyPressed);
+						}
+						else if (VKCode == 'A')
+						{
+							Win32::ProcessKeyboardMessage(&controller->StickLeft, keyPressed);
+						}
+						else if (VKCode == 'S')
+						{
+							Win32::ProcessKeyboardMessage(&controller->StickDown, keyPressed);
+						}
+						else if (VKCode == 'D')
+						{
+							Win32::ProcessKeyboardMessage(&controller->StickRight, keyPressed);
+						}
+						else if (VKCode == 'Q')
+						{
+							Win32::ProcessKeyboardMessage(&controller->LeftShoulder, keyPressed);
+						}
+						else if (VKCode == 'E')
+						{
+							Win32::ProcessKeyboardMessage(&controller->RightShoulder, keyPressed);
+						}
+						else if (VKCode == 'R')
+						{
+
+						}
+						else if (VKCode == 'T')
+						{
+
+						}
+						else if (VKCode == 'F')
+						{
+
+						}
+						else if (VKCode == 'G')
+						{
+
+						}
+						else if (VKCode == VK_ESCAPE)
+						{
+							Win32::ProcessKeyboardMessage(&controller->Back, keyPressed);
+						}
+						else if (VKCode == VK_SPACE)
+						{
+							Win32::ProcessKeyboardMessage(&controller->Start, keyPressed);
+						}
+						else if (VKCode == VK_UP)
+						{
+							Win32::ProcessKeyboardMessage(&controller->ActionUp, keyPressed);
+						}
+						else if (VKCode == VK_DOWN)
+						{
+							Win32::ProcessKeyboardMessage(&controller->ActionDown, keyPressed);
+						}
+						else if (VKCode == VK_LEFT)
+						{
+							Win32::ProcessKeyboardMessage(&controller->ActionLeft, keyPressed);
+						}
+						else if (VKCode == VK_RIGHT)
+						{
+							Win32::ProcessKeyboardMessage(&controller->ActionRight, keyPressed);
+						}
+					}
+
+					if ((altDown) && (VKCode == VK_F4))
+					{
+						_application.IsRunning = false;
+					}
+				} break;
+
+				default:
 				{
-					if (VK_code == 'W')
-					{
-						Win32::ProcessKeyboardMessage(&_controller->stick_up, key_pressed);
-					}
-					else if (VK_code == 'A')
-					{
-						Win32::ProcessKeyboardMessage(&_controller->stick_left, key_pressed);
-					}
-					else if (VK_code == 'S')
-					{
-						Win32::ProcessKeyboardMessage(&_controller->stick_down, key_pressed);
-					}
-					else if (VK_code == 'D')
-					{
-						Win32::ProcessKeyboardMessage(&_controller->stick_right, key_pressed);
-					}
-					else if (VK_code == 'Q')
-					{
-						Win32::ProcessKeyboardMessage(&_controller->left_shoulder, key_pressed);
-					}
-					else if (VK_code == 'E')
-					{
-						Win32::ProcessKeyboardMessage(&_controller->right_shoulder, key_pressed);
-					}
-					else if (VK_code == 'R')
-					{
-
-					}
-					else if (VK_code == 'T')
-					{
-
-					}
-					else if (VK_code == 'F')
-					{
-
-					}
-					else if (VK_code == 'G')
-					{
-
-					}
-					else if (VK_code == VK_ESCAPE)
-					{
-						Win32::ProcessKeyboardMessage(&_controller->back, key_pressed);
-					}
-					else if (VK_code == VK_SPACE)
-					{
-						Win32::ProcessKeyboardMessage(&_controller->start, key_pressed);
-					}
-					else if (VK_code == VK_UP)
-					{
-						Win32::ProcessKeyboardMessage(&_controller->action_up, key_pressed);
-					}
-					else if (VK_code == VK_DOWN)
-					{
-						Win32::ProcessKeyboardMessage(&_controller->action_down, key_pressed);
-					}
-					else if (VK_code == VK_LEFT)
-					{
-						Win32::ProcessKeyboardMessage(&_controller->action_left, key_pressed);
-					}
-					else if (VK_code == VK_RIGHT)
-					{
-						Win32::ProcessKeyboardMessage(&_controller->action_right, key_pressed);
-					}
-				}
-
-				if ((alt_down) && (VK_code == VK_F4))
-				{
-					application.running = false;
-				}
-			} break;
-
-			default:
-			{
-				TranslateMessage(&message);
-				DispatchMessage(&message);
-			} break;
+					TranslateMessage(&message);
+					DispatchMessage(&message);
+				} break;
 			}
 		}
 	}
@@ -495,42 +498,40 @@ DIB_RGB_COLORS, SRCCOPY);
 		return counter;
 	}
 
-	uint64 cycles_elapsed = cycle_count_end - previous_cycle_count;
-	int64 counter_elapsed = counter_end.QuadPart - previous_counter.QuadPart;
-
-	static_internal inline real32 GetTimeDifference(LARGE_INTEGER _start, LARGE_INTEGER _end)
+	static_internal inline real32 GetTimeDifference(LARGE_INTEGER start, LARGE_INTEGER end)
 	{
-		return((real32)(_end.QuadPart - _start.QuadPart) / (real32)application.performance_counter_frequency);
+		return((real32)(end.QuadPart - start.QuadPart) / (real32)_qpcFrequency);
 	}
-
-	
 }
 
-int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _command_line, int _command_show)
+int CALLBACK WinMain(HINSTANCE instance, HINSTANCE previousInstance, LPSTR commandLine, int commandShow)
 {
-	application = {};
-	Win32::ResizeBitmapBuffer(&application.main_bitmap_buffer, 1920, 1080);
-	Win32::LoadXInput();
-
 	LARGE_INTEGER temp_performance_counter_frequency;
 	QueryPerformanceFrequency(&temp_performance_counter_frequency);
-	application.performance_counter_frequency = temp_performance_counter_frequency.QuadPart;
+	_qpcFrequency = temp_performance_counter_frequency.QuadPart;
 
-	WNDCLASS window_class = {};
-	window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-	window_class.lpfnWndProc = Win32::MainWindowCallback;
-	window_class.hInstance = _instance;
-	// window_class.hIcon;
-	window_class.lpszClassName = "HandmadeHeroWindowClass";
+	//UINT desiredSchedulerMS = 1;
+	//bool32 sleepIsGranular = (timeBeginPeriod(desiredSchedulerMS) == TIMERR_NOERROR);
 
-	int monitor_refresh_rate = 60;
-	int game_update_rate = monitor_refresh_rate / 2;
-	real32 target_frame_time = 1.0f / game_update_rate;
+	_application = {};
+	Win32::ResizeBitmapBuffer(&_application.MainBitmapBuffer, 1920, 1080);
+	Win32::LoadXInput();
 
-	if (RegisterClass(&window_class))
+	WNDCLASS windowClass = {};
+	windowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+	windowClass.lpfnWndProc = Win32::MainWindowCallback;
+	windowClass.hInstance = instance;
+	// windowClass.hIcon;
+	windowClass.lpszClassName = "HandmadeHeroWindowClass";
+
+	int monitorRefreshRate = 60;
+	int gameUpdateRate = monitorRefreshRate / 2;
+	real32 targetFrameTime = 1.0f / gameUpdateRate;
+
+	if (RegisterClass(&windowClass))
 	{
 		HWND window = CreateWindowEx(0,
-									 window_class.lpszClassName,
+									 windowClass.lpszClassName,
 									 "Handmade Hero",
 									 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 									 CW_USEDEFAULT,
@@ -539,207 +540,228 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 									 CW_USEDEFAULT,
 									 0,
 									 0,
-									 _instance,
+									 instance,
 									 0);
 
 		if (window)
 		{
-			HDC device_context = GetDC(window);
+			HDC deviceContext = GetDC(window);
 
-			Win32::AudioInfo audio_info = {};
-			audio_info.samples_per_second = 48000;
-			audio_info.running_sample_index = 0;
-			audio_info.bytes_per_sample = sizeof(int16) * 2;
-			audio_info.buffer_size = audio_info.samples_per_second * audio_info.bytes_per_sample;
-			audio_info.latency_sample_count = audio_info.samples_per_second / 15;
+			Win32::AudioInfo audioInfo = {};
+			audioInfo.SamplesPerSecond = 48000;
+			audioInfo.RunningSampleIndex = 0;
+			audioInfo.BytesPerSample = sizeof(int16) * 2;
+			audioInfo.BufferSize = audioInfo.SamplesPerSecond * audioInfo.BytesPerSample;
+			audioInfo.LatencySampleCount = audioInfo.SamplesPerSecond / 15;
 
-			Win32::InitializeDirectSound(window, audio_info.samples_per_second, audio_info.buffer_size);
-			Win32::ClearAudioBuffer(&audio_info);
-			application.main_audio_buffer->Play(0, 0, DSBPLAY_LOOPING);
+			Win32::InitializeDirectSound(window, audioInfo.SamplesPerSecond, audioInfo.BufferSize);
+			Win32::ClearAudioBuffer(&audioInfo);
+			_application.MainAudioBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
-			int16* samples = (int16*)VirtualAlloc(0, audio_info.buffer_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			int16* samples = (int16*)VirtualAlloc(0, audioInfo.BufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-#if (INTERNAL_BUILD == true)
-			LPVOID base_address = (LPVOID)Terabytes(2);
+#if DEV_BUILD
+			LPVOID baseAddress = (LPVOID)Terabytes(2);
 #else
-			LPVOID base_address = 0;
+			LPVOID baseAddress = 0;
 #endif
 
-			Abstract::Memory memory = {};
-			memory.permanent_storage_size = Megabytes(64);
-			memory.transient_storage_size = Gigabytes(2);
+			Memory memory = {};
+			memory.PermanentStorageSize = Megabytes(64);
+			memory.TransientStorageSize = Gigabytes(2);
 			//memory.transient_storage_size = Megabytes(963); 
 
-			uint64 total_memory_size = memory.permanent_storage_size + memory.transient_storage_size;
-			memory.permanent_storage = VirtualAlloc(base_address, (size_t)total_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-			memory.transient_storage = ((uint8*)memory.permanent_storage + memory.permanent_storage_size);
+			uint64 totalMemorySize = memory.PermanentStorageSize + memory.TransientStorageSize;
+			memory.PermanentStorage = VirtualAlloc(baseAddress, (size_t)totalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			memory.TransientStorage = ((uint8*)memory.PermanentStorage + memory.PermanentStorageSize);
 
-			if (samples && memory.permanent_storage && memory.transient_storage)
+			if (samples && memory.PermanentStorage && memory.TransientStorage)
 			{
-				Abstract::Input input[2] = {};
-				Abstract::Input* new_input = &input[0];
-				Abstract::Input* old_input = &input[1];
+				Input input[2] = {};
+				Input* newInput = &input[0];
+				Input* oldInput = &input[1];
 
-				LARGE_INTEGER previous_counter;
-				QueryPerformanceCounter(&previous_counter);
+				LARGE_INTEGER previousCounter = Win32::GetWallClock();
 
-				uint64 previous_cycle_count = __rdtsc();
+				uint64 previousCycleCount = __rdtsc();
 
-				application.running = true;
-				while (application.running)
+				_application.IsRunning = true;
+				while (_application.IsRunning)
 				{
-					Abstract::Controller* old_keyboard_controller = GetController(old_input, 0);
-					Abstract::Controller* new_keyboard_controller = GetController(new_input, 0);
-					*new_keyboard_controller = {};
-					new_keyboard_controller->is_connected = true;
-					for (uint8 button_index = 0; button_index < ArrayCount(new_keyboard_controller->buttons); ++button_index)
+					Controller* oldKeyboardController = GetController(oldInput, 0);
+					Controller* newKeyboardController = GetController(newInput, 0);
+					*newKeyboardController = {};
+					newKeyboardController->IsConnected = true;
+					for (uint8 buttonIndex = 0; buttonIndex < ArrayCount(newKeyboardController->Buttons); ++buttonIndex)
 					{
-						new_keyboard_controller->buttons[button_index].ended_down = old_keyboard_controller->buttons[button_index].ended_down;
+						newKeyboardController->Buttons[buttonIndex].EndedDown = oldKeyboardController->Buttons[buttonIndex].EndedDown;
 					}
 
-					Win32::ProcessMessages(new_keyboard_controller);
+					Win32::ProcessMessages(newKeyboardController);
 
 					// NOTE(Craig): Keyboard + Number of controllers allowed.
-					uint8 max_controller_count = 1 + XUSER_MAX_COUNT;
-					if (max_controller_count > ArrayCount(new_input->controllers))
+					uint8 maxControllerCount = 1 + XUSER_MAX_COUNT;
+					if (maxControllerCount > ArrayCount(newInput->Controllers))
 					{
-						max_controller_count = ArrayCount(new_input->controllers);
+						maxControllerCount = ArrayCount(newInput->Controllers);
 					}
 
 					// NOTE(Craig): Index starting at 1, 0 is keyboard.
-					for (uint8 controller_index = 1; controller_index < max_controller_count; ++controller_index)
+					for (uint8 controllerIndex = 1; controllerIndex < maxControllerCount; ++controllerIndex)
 					{
-						Abstract::Controller* old_controller = GetController(old_input, controller_index);
-						Abstract::Controller* new_controller = GetController(new_input, controller_index);
+						Controller* oldController = GetController(oldInput, controllerIndex);
+						Controller* newController = GetController(newInput, controllerIndex);
 
 						XINPUT_STATE controller_state;
-						if (XInputGetState(controller_index, &controller_state) == ERROR_SUCCESS)
+						if (XInputGetState(controllerIndex, &controller_state) == ERROR_SUCCESS)
 						{
 							// NOTE(Craig): Controller available.
-							new_controller->is_connected = true;
-							
+							newController->IsConnected = true;
+
 							XINPUT_GAMEPAD* pad = &controller_state.Gamepad;
 
-							new_controller->stick_average_x = Win32::ProcessXInputAnalogStick(pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
-							new_controller->stick_average_y = Win32::ProcessXInputAnalogStick(pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
-							if ((new_controller->stick_average_x != 0.0f) || (new_controller->stick_average_y != 0.0f))
+							newController->StickAverageX = Win32::ProcessXInputAnalogStick(pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+							newController->StickAverageY = Win32::ProcessXInputAnalogStick(pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+							if ((newController->StickAverageX != 0.0f) || (newController->StickAverageY != 0.0f))
 							{
-								new_controller->is_analog = true;
+								newController->IsAnalog = true;
 							}
 
 							if (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
 							{
-								new_controller->stick_average_y = 1.0f;
-								new_controller->is_analog = false;
+								newController->StickAverageY = 1.0f;
+								newController->IsAnalog = false;
 							}
 							if (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
 							{
-								new_controller->stick_average_y = -1.0f;
-								new_controller->is_analog = false;
+								newController->StickAverageY = -1.0f;
+								newController->IsAnalog = false;
 							}
 							if (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
 							{
-								new_controller->stick_average_x = -1.0f;
-								new_controller->is_analog = false;
+								newController->StickAverageX = -1.0f;
+								newController->IsAnalog = false;
 							}
 							if (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
 							{
-								new_controller->stick_average_x = 1.0f;
-								new_controller->is_analog = false;
+								newController->StickAverageX = 1.0f;
+								newController->IsAnalog = false;
 							}
 
 							real32 threshold = 0.5f;
-							Win32::ProcessXInputDigitalButton((new_controller->stick_average_x < -threshold) ? 1 : 0, 1, &old_controller->stick_left, &new_controller->stick_left);
-							Win32::ProcessXInputDigitalButton((new_controller->stick_average_x > threshold) ? 1 : 0, 1, &old_controller->stick_right, &new_controller->stick_right);
-							Win32::ProcessXInputDigitalButton((new_controller->stick_average_y < -threshold) ? 1 : 0, 1, &old_controller->stick_down, &new_controller->stick_down);
-							Win32::ProcessXInputDigitalButton((new_controller->stick_average_y > threshold) ? 1 : 0, 1, &old_controller->stick_up, &new_controller->stick_up);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &old_controller->left_shoulder, &new_controller->left_shoulder);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &old_controller->right_shoulder, &new_controller->right_shoulder);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_A, &old_controller->action_down, &new_controller->action_down);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_B, &old_controller->action_right, &new_controller->action_right);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_X, &old_controller->action_left, &new_controller->action_left);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_Y, &old_controller->action_up, &new_controller->action_up);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_START, &old_controller->start, &new_controller->start);
-							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_BACK, &old_controller->back, &new_controller->back);
+							Win32::ProcessXInputDigitalButton((newController->StickAverageX < -threshold) ? 1 : 0, 1, &oldController->StickLeft, &newController->StickLeft);
+							Win32::ProcessXInputDigitalButton((newController->StickAverageX > threshold) ? 1 : 0, 1, &oldController->StickRight, &newController->StickRight);
+							Win32::ProcessXInputDigitalButton((newController->StickAverageY < -threshold) ? 1 : 0, 1, &oldController->StickDown, &newController->StickDown);
+							Win32::ProcessXInputDigitalButton((newController->StickAverageY > threshold) ? 1 : 0, 1, &oldController->StickUp, &newController->StickUp);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &oldController->LeftShoulder, &newController->LeftShoulder);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &oldController->RightShoulder, &newController->RightShoulder);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_A, &oldController->ActionDown, &newController->ActionDown);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_B, &oldController->ActionRight, &newController->ActionRight);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_X, &oldController->ActionLeft, &newController->ActionLeft);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_Y, &oldController->ActionUp, &newController->ActionUp);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_START, &oldController->Start, &newController->Start);
+							Win32::ProcessXInputDigitalButton(pad->wButtons, XINPUT_GAMEPAD_BACK, &oldController->Back, &newController->Back);
 						}
 						else
 						{
 							// NOTE(Craig): Controller not available.
-							new_controller->is_connected = false;
+							newController->IsConnected = false;
 						}
 					}
 
-					DWORD byte_to_lock;
-					DWORD target_cursor;
-					DWORD bytes_to_write;
-					DWORD play_cursor;
-					DWORD write_cursor;
-					bool32 sound_is_valid = false;
-					if (SUCCEEDED(application.main_audio_buffer->GetCurrentPosition(&play_cursor, &write_cursor)))
+					DWORD byteToLock;
+					DWORD targetCursor;
+					DWORD bytesToWrite;
+					DWORD playCursor;
+					DWORD writeCursor;
+					bool32 soundIsValid = false;
+					if (SUCCEEDED(_application.MainAudioBuffer->GetCurrentPosition(&playCursor, &writeCursor)))
 					{
-						byte_to_lock = (audio_info.running_sample_index * audio_info.bytes_per_sample) % audio_info.buffer_size;
-						target_cursor = (play_cursor + audio_info.latency_sample_count * audio_info.bytes_per_sample) % audio_info.buffer_size;
+						byteToLock = (audioInfo.RunningSampleIndex * audioInfo.BytesPerSample) % audioInfo.BufferSize;
+						targetCursor = (playCursor + audioInfo.LatencySampleCount * audioInfo.BytesPerSample) % audioInfo.BufferSize;
 
-						if (byte_to_lock > target_cursor)
+						if (byteToLock > targetCursor)
 						{
-							bytes_to_write = audio_info.buffer_size - byte_to_lock;
-							bytes_to_write += target_cursor;
+							bytesToWrite = audioInfo.BufferSize - byteToLock;
+							bytesToWrite += targetCursor;
 						}
 						else
 						{
-							bytes_to_write = target_cursor - byte_to_lock;
+							bytesToWrite = targetCursor - byteToLock;
 						}
 
-						sound_is_valid = true;
+						soundIsValid = true;
 					}
 
-					Abstract::AudioBuffer audio_buffer = {};
-					audio_buffer.samples_per_second = audio_info.samples_per_second;
-					audio_buffer.sample_count = bytes_to_write / audio_info.bytes_per_sample;
-					audio_buffer.samples = samples;
+					AudioBuffer audioBuffer = {};
+					audioBuffer.SamplesPerSecond = audioInfo.SamplesPerSecond;
+					audioBuffer.SampleCount = bytesToWrite / audioInfo.BytesPerSample;
+					audioBuffer.Samples = samples;
 
-					Abstract::BitmapBuffer bitmap_buffer = {};
-					bitmap_buffer.memory = application.main_bitmap_buffer.memory;
-					bitmap_buffer.width = application.main_bitmap_buffer.width;
-					bitmap_buffer.height = application.main_bitmap_buffer.height;
-					bitmap_buffer.pitch = application.main_bitmap_buffer.pitch;
+					BitmapBuffer bitmapBuffer = {};
+					bitmapBuffer.Memory = _application.MainBitmapBuffer.Memory;
+					bitmapBuffer.Width = _application.MainBitmapBuffer.Width;
+					bitmapBuffer.Height = _application.MainBitmapBuffer.Height;
+					bitmapBuffer.Pitch = _application.MainBitmapBuffer.Pitch;
 
-					UpdateAndRender(&memory, new_input, &bitmap_buffer, &audio_buffer);
+					UpdateAndRender(&memory, newInput, &bitmapBuffer, &audioBuffer);
 
-					if (sound_is_valid)
+					if (soundIsValid)
 					{
-						FillAudioBuffer(&audio_info, byte_to_lock, bytes_to_write, &audio_buffer);
+						FillAudioBuffer(&audioInfo, byteToLock, bytesToWrite, &audioBuffer);
+					}
+
+					LARGE_INTEGER workCounter = Win32::GetWallClock();
+					real32 workSecondsElapsed = Win32::GetTimeDifference(previousCounter, workCounter);
+
+					real32 secondsElapsedForFrame = workSecondsElapsed;
+					if (secondsElapsedForFrame < targetFrameTime)
+					{
+						/*if (sleepIsGranular)
+						{
+							DWORD sleepMS = (DWORD)(1000.0f * (targetFrameTime -
+													secondsElapsedForFrame));
+							if (sleepMS > 0)
+							{
+								Sleep(sleepMS);
+							}
+						}
+
+						real32 testSecondsElapsedForFrame = Win32::GetTimeDifference(previousCounter, Win32::GetWallClock());
+
+						Assert(testSecondsElapsedForFrame < targetFrameTime);
+
+						while (secondsElapsedForFrame < targetFrameTime)
+						{
+							secondsElapsedForFrame = Win32::GetTimeDifference(previousCounter, Win32::GetWallClock());
+						}*/
+					}
+					else
+					{
+						// TODO(Craig): Missed frame rate, logging
 					}
 
 					Win32::ClientDimensions client = Win32::GetClientDimensions(window);
-					DisplayBitmapToDevice(device_context, &application.main_bitmap_buffer, client.width, client.height);
+					Win32::DisplayBitmapToDevice(deviceContext, &_application.MainBitmapBuffer, client.Width, client.Height);
 
-					uint64 cycle_count_end = __rdtsc();
+					Input* temp = newInput;
+					newInput = oldInput;
+					oldInput = temp;
 
-					
-					real32 time_remainder = target_frame_time - time_elapsed_for_frame;
-					while (time_remainder > 0.0f)
-					{
-						QueryPerformanceCounter(&counter_end);
-						time_remainder = target_frame_time - ((real32)(counter_end.QuadPart - previous_counter.QuadPart) / (real32)performance_counter_frequency);
-					}
+					LARGE_INTEGER counter = Win32::GetWallClock();
+					previousCounter = counter;
 
-					real32 ms_per_frame = (1000.0f * (real32)counter_elapsed) / (real32)performance_counter_frequency;
-					real32 frames_per_second = (real32)performance_counter_frequency / (real32)counter_elapsed;
-					real32 mega_cycles_per_frame = (real32)cycles_elapsed / (1000.0f * 1000.0f);
+					uint64 cycleCount = __rdtsc();
+					uint64 cyclesElapsed = cycleCount - previousCycleCount;
+					previousCycleCount = cycleCount;
+
+					real32 msPerFrame = 1000.0f * Win32::GetTimeDifference(previousCounter, counter);
+					real64 framesPerSecond = 0.0f;
+					real64 megaCyclesPerFrame = ((real64)cyclesElapsed / (1000.0f * 1000.0f));
 
 					char buffer[256];
-					sprintf_s(buffer, "Frame Time: %.02fms  FPS: %.02f  Megacycles: %.02f\n", ms_per_frame, frames_per_second, mega_cycles_per_frame);
+					sprintf_s(buffer, "Frame Time: %.02fms  FPS: %.02f  Megacycles: %.02f\n", msPerFrame, framesPerSecond, megaCyclesPerFrame);
 					OutputDebugString(buffer);
-
-					QueryPerformanceCounter(&counter_end);
-
-					previous_cycle_count = cycle_count_end;
-					previous_counter = counter_end;
-
-					Abstract::Input* temp = new_input;
-					new_input = old_input;
-					old_input = temp;
 				}
 			}
 			else
@@ -762,33 +784,33 @@ int CALLBACK WinMain(HINSTANCE _instance, HINSTANCE _previnstance, LPSTR _comman
 
 // DEBUG IMPLEMENTATIONS
 
-FileBuffer ReadEntireFile(char* _filename)
+Debug::FileBuffer Debug::ReadEntireFile(char* filename)
 {
-	FileBuffer result = {};
+	Debug::FileBuffer result = {};
 
-	HANDLE file_handle = CreateFile(_filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-	if (file_handle != INVALID_HANDLE_VALUE)
+	HANDLE fileHandle = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	if (fileHandle != INVALID_HANDLE_VALUE)
 	{
-		LARGE_INTEGER file_size;
-		if (GetFileSizeEx(file_handle, &file_size))
+		LARGE_INTEGER fileSize;
+		if (GetFileSizeEx(fileHandle, &fileSize))
 		{
 			// NOTE(Craig): ReadFile takes DWORD file size, max read is 4GB.
-			uint32 file_size_32 = TruncateUInt64(file_size.QuadPart);
-			result.memory = VirtualAlloc(0, file_size_32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-			if (result.memory)
+			uint32 fileSize32 = TruncateUInt64(fileSize.QuadPart);
+			result.Memory = VirtualAlloc(0, fileSize32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			if (result.Memory)
 			{
-				DWORD bytes_read;
-				if (ReadFile(file_handle, result.memory, file_size_32, &bytes_read, 0) && (file_size_32 == bytes_read))
+				DWORD bytesRead;
+				if (ReadFile(fileHandle, result.Memory, fileSize32, &bytesRead, 0) && (fileSize32 == bytesRead))
 				{
 					// NOTE(Craig): Read success
-					result.size = file_size_32;
+					result.Size = fileSize32;
 				}
 				else
 				{
 					// NOTE(Craig): Read file failure, so free memory
 					// TODO(Craig): Logging
-					FreeFileMemory(result.memory);
-					result.memory = 0;
+					FreeFileMemory(result.Memory);
+					result.Memory = 0;
 				}
 			}
 			else
@@ -800,7 +822,7 @@ FileBuffer ReadEntireFile(char* _filename)
 		{
 			// TODO(Craig): Logging
 		}
-		CloseHandle(file_handle);
+		CloseHandle(fileHandle);
 	}
 	else
 	{
@@ -809,32 +831,32 @@ FileBuffer ReadEntireFile(char* _filename)
 	return result;
 }
 
-void FreeFileMemory(void* _memory)
+void Debug::FreeFileMemory(void* memory)
 {
-	if (_memory)
+	if (memory)
 	{
-		VirtualFree(_memory, 0, MEM_RELEASE);
+		VirtualFree(memory, 0, MEM_RELEASE);
 	}
 }
 
-bool32 WriteEntireFile(char* _filename, uint32 _memory_size, void* _memory)
+bool32 Debug::WriteEntireFile(char* filename, uint32 memorySize, void* memory)
 {
 	bool32 result = false;
-	HANDLE file_handle = CreateFile(_filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-	if (file_handle != INVALID_HANDLE_VALUE)
+	HANDLE fileHandle = CreateFile(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+	if (fileHandle != INVALID_HANDLE_VALUE)
 	{
-		DWORD bytes_written;
-		if (WriteFile(file_handle, _memory, _memory_size, &bytes_written, 0))
+		DWORD bytesWritten;
+		if (WriteFile(fileHandle, memory, memorySize, &bytesWritten, 0))
 		{
 			// NOTE(Craig): Write success
-			result = (bytes_written == _memory_size);
+			result = (bytesWritten == memorySize);
 		}
 		else
 		{
 			// TODO(Craig): Logging
 		}
 
-		CloseHandle(file_handle);
+		CloseHandle(fileHandle);
 	}
 	else
 	{

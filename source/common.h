@@ -2,13 +2,12 @@
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 // File:		|	common																				//
 // Author:		|	Craig Jeffrey (craigjeffrey3@gmail.com)												//
-// Date:		|	August 2015																			//
+// Date:		|	February 2017																		//
 // Description:	|	Commonly required typedefs, definitions, structs, etc.								//
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 #include <cstdint>
 // TODO(Craig): Remove cmath in favor of own math lib.
 #include <cmath>
-#include "build.h"
 
 //~~~~~~ PREPROCESSOR ~~~~~~\\
 
@@ -29,6 +28,18 @@
 	#define static_global static
 
 	#define Pi32 3.14159265358979323846f
+
+//~~~~~~ BUILD ~~~~~\\
+
+#if !defined(DEV_BUILD)
+	#define DEV_BUILD	true
+#endif
+
+#if defined(DEBUG_BUILD)
+	#define Assert(expression) if(!(expression)) {*(int*)0 = 0;}
+#elif defined(RELEASE_BUILD)
+	#define Assert(expression)
+#endif
 
 //~~~~~~ TYPES ~~~~~~\\
 
@@ -53,13 +64,13 @@
 	{
 		struct RGB
 		{
-			uint8 red;
-			uint8 green;
-			uint8 blue;
+			uint8 Red;
+			uint8 Green;
+			uint8 Blue;
 		};
 		struct RGBA : public RGB
 		{
-			uint8 alpha;
+			uint8 Alpha;
 		};
 
 		static_global RGB Black = { 0, 0, 0 };
@@ -69,25 +80,12 @@
 		static_global RGB Blue = { 0, 0, 255 };
 	}
 
-	inline uint32 TruncateUInt64(uint64 _value)
+	inline uint32 TruncateUInt64(uint64 value)
 	{
-		Assert(_value <= UINT32_MAX);
-		uint32 result = (uint32)_value;
+		Assert(value <= UINT32_MAX);
+		uint32 result = (uint32)value;
 		return result;
 	}
-
-//~~~~~~ FILE I/O ~~~~~~\\
-
-	struct FileBuffer
-	{
-		uint32 size;
-		void* memory;
-	};
-
-	// NOTE(Craig): Implemented in platform-specific layer.
-	FileBuffer ReadEntireFile(char* filename);
-	void FreeFileMemory(void* memory);
-	bool32 WriteEntireFile(char* filename, uint32 memory_size, void* memory);
 
 #define COMMON_H
 #endif
